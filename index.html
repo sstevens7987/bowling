@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#0f172a" />
-  <title>Bowling League Secretary</title>
+  <title>League Ledger</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
@@ -23,6 +23,9 @@
 
     const titleCase = (str) => { if (!str) return str; return str.replace(/\b\w/g, c => c.toUpperCase()); };
 
+    // Returns "Team N: Name" for display everywhere
+    const teamLabel = (team, index) => `Team ${index + 1}: ${team.name}`;
+
     function NumberInput({ value, onChange, min, max, step, className }) {
       const [local, setLocal] = useState(String(value));
       useEffect(() => { setLocal(String(value)); }, [value]);
@@ -40,7 +43,25 @@
     const SUPABASE_KEY = 'sb_publishable_3bCKh56FWvlt_HSmbQ4oxg_vtRFMy-D';
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const Ic = ({ d, cls = "w-5 h-5" }) => <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cls}>{d}</svg>;
+    // Custom bowling + money logo icon (paths only, no text element)
+    const LeagueLedgerLogo = ({ cls = "w-12 h-12" }) => (
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={cls}>
+        {/* Bowling ball */}
+        <circle cx="27" cy="37" r="21" fill="#1e293b" stroke="#f59e0b" strokeWidth="2.5"/>
+        {/* Finger holes */}
+        <circle cx="21" cy="29" r="3" fill="#f59e0b"/>
+        <circle cx="30" cy="25" r="3" fill="#f59e0b"/>
+        <circle cx="35" cy="33" r="3" fill="#f59e0b"/>
+        {/* Money badge circle */}
+        <circle cx="47" cy="17" r="13" fill="#f59e0b"/>
+        <circle cx="47" cy="17" r="10" fill="#0f172a"/>
+        {/* Dollar sign drawn as paths */}
+        {/* Vertical bar */}
+        <line x1="47" y1="9" x2="47" y2="25" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/>
+        {/* Top curve of S */}
+        <path d="M51 12.5 C51 10.5 49 9.5 47 9.5 C45 9.5 43 10.5 43 12.5 C43 14.5 45 15.5 47 16 C49 16.5 51 17.5 51 19.5 C51 21.5 49 22.5 47 22.5 C45 22.5 43 21.5 43 19.5" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" fill="none"/>
+      </svg>
+    );
     const Lock = p => <Ic {...p} d={<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>}/>;
     const Plus = p => <Ic {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>}/>;
     const Archive = p => <Ic {...p} d={<><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></>}/>;
@@ -101,8 +122,12 @@
       return (
         <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
           <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-700">
-            <div className="flex justify-center mb-6"><div className="bg-amber-500 rounded-full p-4"><Lock cls="w-8 h-8 text-slate-900" /></div></div>
-            <h1 className="text-3xl font-bold text-center text-white mb-2">Bowling League Secretary</h1>
+            <div className="flex justify-center mb-6">
+              <div className="bg-slate-700 rounded-full p-4 border-2 border-amber-500 shadow-lg shadow-amber-900/40">
+                <LeagueLedgerLogo cls="w-14 h-14" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-center text-white mb-2">League Ledger</h1>
             <p className="text-center text-slate-400 mb-6">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
             <div className="flex bg-slate-700 rounded-lg p-1 mb-6">
               <button onClick={() => { setMode('signin'); setErr(''); setMsg(''); }} className={`flex-1 py-2 rounded-md font-semibold ${mode === 'signin' ? 'bg-amber-500 text-slate-900' : 'text-slate-300'}`}>Sign In</button>
@@ -262,7 +287,7 @@
       const [showShare, setShowShare] = useState(false);
       const s = league.settings;
       const isOwner = league.ownerId === userId;
-      const allPlayers = league.teams.flatMap(t => t.players.map(p => ({ ...p, teamName: t.name, teamId: t.id })));
+      const allPlayers = league.teams.flatMap((t, ti) => t.players.map(p => ({ ...p, teamName: teamLabel(t, ti), teamId: t.id })));
       const payingPlayers = allPlayers.filter(p => p.name.trim() && !p.isSubstitute);
       const subPlayers = allPlayers.filter(p => p.name.trim() && p.isSubstitute);
 
@@ -303,11 +328,12 @@
         h += '<table border="1"><tr><th style="background:#f59e0b">Team</th><th style="background:#f59e0b">Player</th><th style="background:#f59e0b">Role</th>';
         for (let w = 1; w <= s.numWeeks; w++) h += `<th style="background:#f59e0b">Wk ${w}</th>`;
         h += '<th style="background:#f59e0b">Total Paid</th></tr>';
-        league.teams.forEach(team => {
+        league.teams.forEach((team, ti) => {
+          const lbl = teamLabel(team, ti);
           team.players.forEach(p => {
             if (!p.name.trim()) return;
             let tw = 0;
-            h += `<tr><td>${esc(team.name)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
+            h += `<tr><td>${esc(lbl)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
             for (let w = 1; w <= s.numWeeks; w++) {
               if (p.isSubstitute) h += '<td style="background:#e5e7eb">N/A</td>';
               else { const pd = league.weeklyPayments[`week_${w}`]?.[p.id]; if (pd) tw++; h += `<td>${pd ? 'PAID' : ''}</td>`; }
@@ -407,11 +433,12 @@
       if (payingPlayers.length === 0) return <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg mb-2">No paying players yet.</p><p className="text-slate-500 text-sm">Go to Team Roster and add players. Substitutes don't appear here.</p></div>;
       const payByTeam = {};
       const subByTeam = {};
-      league.teams.forEach(t => {
+      league.teams.forEach((t, ti) => {
+        const lbl = teamLabel(t, ti);
         const py = t.players.filter(p => p.name.trim() && !p.isSubstitute);
         const sb = t.players.filter(p => p.name.trim() && p.isSubstitute);
-        if (py.length) payByTeam[t.name] = py;
-        if (sb.length) subByTeam[t.name] = sb;
+        if (py.length) payByTeam[lbl] = py;
+        if (sb.length) subByTeam[lbl] = sb;
       });
       return (
         <div className="space-y-6">
@@ -731,7 +758,8 @@
       });
 
       // Team stats
-      const teamStats = league.teams.map(team => {
+      const teamStats = league.teams.map((team, ti) => {
+        const lbl = teamLabel(team, ti);
         const paying = team.players.filter(p => p.name.trim() && !p.isSubstitute);
         let collected = 0, expected = 0;
         paying.forEach(p => {
@@ -740,7 +768,7 @@
             if (league.weeklyPayments[`week_${w}`]?.[p.id]) collected += s.weeklyFeePerPlayer;
           }
         });
-        return { name: team.name, playerCount: paying.length, subCount: team.players.filter(p => p.name.trim() && p.isSubstitute).length, collected, expected, rate: expected > 0 ? Math.round((collected / expected) * 100) : 0 };
+        return { name: lbl, playerCount: paying.length, subCount: team.players.filter(p => p.name.trim() && p.isSubstitute).length, collected, expected, rate: expected > 0 ? Math.round((collected / expected) * 100) : 0 };
       }).filter(t => t.playerCount > 0);
 
       // Missing payments: who hasn't paid this week (latest week with any data, or week 1)
