@@ -9,17 +9,23 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#000000; }
-    ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #000000; }
-    ::-webkit-scrollbar-thumb { background: #0e7490; border-radius: 3px; }
-  </style>
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#000000}
+    ::-webkit-scrollbar{width:6px}
+    ::-webkit-scrollbar-track{background:#000000}
+    ::-webkit-scrollbar-thumb{background:#0e7490;border-radius:3px}
+    .btn-orange{background:linear-gradient(135deg,#e07010 0%,#b85500 100%)!important;box-shadow:0 4px 20px rgba(200,100,0,0.4)}
+    .btn-orange:hover{opacity:0.9}
+    .btn-green{background:linear-gradient(135deg,#1D6F42 0%,#155230 100%)!important;box-shadow:0 4px 12px rgba(29,111,66,0.4)}
+    .btn-green:hover{opacity:0.9}
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useCallback } = React;
+
+
+const _css = document.createElement('style');
+_css.textContent = "body{margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#000}::-webkit-scrollbar-thumb{background:#0e7490;border-radius:3px}.btn-orange{background:linear-gradient(135deg,#e07010,#b85500)!important;box-shadow:0 4px 20px rgba(200,100,0,.4)}.btn-orange:hover{opacity:.9}.btn-green{background:linear-gradient(135deg,#1D6F42,#155230)!important;box-shadow:0 4px 12px rgba(29,111,66,.4)}.btn-green:hover{opacity:.9}";
+document.head.appendChild(_css);
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const titleCase = s => s ? s.replace(/\b\w/g, c => c.toUpperCase()) : s;
@@ -225,7 +231,7 @@ function MainApp({ session }) {
           {/* ── home-header ── */}
           <div id="ll-home-header" className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
-              <LeagueLedgerLogo size="w-24 h-24" />
+              <LeagueLedgerLogo size="w-48 h-48" />
               <h1 className="text-3xl md:text-4xl font-bold text-white self-center">My Leagues</h1>
             </div>
             <button id="ll-signout-btn" onClick={signOut} className="border border-cyan-900/50 hover:border-cyan-500 text-cyan-400 px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors" style={{background:'#060f1e'}}>
@@ -244,7 +250,7 @@ function MainApp({ session }) {
               </div>
             </div>
           ) : (
-            <button id="ll-new-league-btn" onClick={() => setShowNew(true)} className="w-full text-slate-900 font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)',boxShadow:'0 4px 20px rgba(245,158,11,0.3)'}}>
+            <button id="ll-new-league-btn" onClick={() => setShowNew(true)} className="btn-orange w-full text-white font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg">
               <IconPlus size="w-6 h-6" /> New League
             </button>
           )}
@@ -259,7 +265,7 @@ function MainApp({ session }) {
                       <p className="text-cyan-700 text-sm">{(lg.teams||[]).length} teams · {lg.settings.dayOfWeek}s · {lg.settings.numWeeks} weeks{lg.ownerId !== uid ? ' · Shared with you' : ''}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="text-slate-900 font-bold px-5 py-2 rounded-lg" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>Open</button>
+                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="btn-orange text-white font-bold px-5 py-2 rounded-lg">Open</button>
                       {lg.ownerId === uid && <button onClick={() => archiveLeague(lg.id)} className="border border-cyan-900/50 text-cyan-400 px-3 py-2 rounded-lg hover:border-cyan-500" style={{background:'#060f1e'}}><IconArchive size="w-5 h-5" /></button>}
                     </div>
                   </div>
@@ -390,7 +396,7 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
           </div>
           <div className="flex gap-2">
             {isOwner && <button id="ll-share-btn" onClick={() => setShowShare(true)} className="border border-cyan-500/50 text-cyan-400 font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:border-cyan-400" style={{background:'#060f1e'}}><IconShare size="w-5 h-5" /> Share</button>}
-            <button id="ll-xls-btn" onClick={exportXLS} className="text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center gap-2" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}><IconDownload size="w-5 h-5" /> XLS</button>
+            <button id="ll-xls-btn" onClick={exportXLS} className="btn-green text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> XLS</button>
           </div>
         </div>
         {syncErr && <div id="ll-league-error" className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
