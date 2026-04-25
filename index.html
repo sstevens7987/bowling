@@ -205,7 +205,7 @@ function MainApp({ session }) {
   const createLeague = async () => {
     if (!newName.trim()) return;
     setSyncing(true);
-    const nl = { name: newName.trim(), archived: false, owner_id: uid, settings: { startDate: new Date().toISOString().split('T')[0], dayOfWeek: 'Monday', numWeeks: 30, weeklyFeePerPlayer: 15, alleyFeePerPlayer: 10, linesPerWeek: 3, secretaryRatePerLine: 0.60 }, teams: [], weekly_payments: {} };
+    const nl = { name: newName.trim(), archived: false, owner_id: uid, settings: { startDate: new Date().toISOString().split('T')[0], endDate: '', dayOfWeek: 'Monday', numWeeks: 30, weeklyFeePerPlayer: 15, alleyFeePerPlayer: 10, linesPerWeek: 3, secretaryRatePerLine: 0.60 }, teams: [], weekly_payments: {} };
     const { data, error } = await db.from('leagues').insert(nl).select().single();
     if (error) setSyncErr('Could not create: ' + error.message);
     else { await loadLeagues(); setCurId(data.id); setNewName(''); setShowNew(false); setView('league'); }
@@ -345,16 +345,15 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
     let h = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>';
     h += `<h2>${esc(league.name)}</h2>`;
     h += '<table border="1"><tr><th colspan="2" style="background:#f59e0b">League Settings</th></tr>';
-    h += `<tr><td>Start Date</td><td>${s.startDate}</td></tr><tr><td>Day</td><td>${s.dayOfWeek}</td></tr><tr><td>Teams</td><td>${league.teams.length}</td></tr><tr><td>Paying Players</td><td>${paying.length}</td></tr><tr><td>Substitutes</td><td>${subs.length}</td></tr><tr><td>Weeks</td><td>${s.numWeeks}</td></tr><tr><td>Weekly Fee</td><td>$${s.weeklyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Alley Fee</td><td>$${s.alleyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Lines/Wk</td><td>${s.linesPerWeek}</td></tr><tr><td>Sec Rate</td><td>$${s.secretaryRatePerLine.toFixed(2)}</td></tr></table><br/>`;
-    h += '<table border="1"><tr><th style="background:#f59e0b">Team</th><th style="background:#f59e0b">Player</th><th style="background:#f59e0b">Role</th>';
+    h += `<tr><td>Start Date</td><td>${s.startDate}</td></tr><tr><td>End Date</td><td>${s.endDate || ''}</td></tr><tr><td>Day</td><td>${s.dayOfWeek}</td></tr><tr><td>Teams</td><td>${league.teams.length}</td></tr><tr><td>Paying Players</td><td>${paying.length}</td></tr><tr><td>Substitutes</td><td>${subs.length}</td></tr><tr><td>Weeks</td><td>${s.numWeeks}</td></tr><tr><td>Weekly Fee</td><td>$${s.weeklyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Alley Fee</td><td>$${s.alleyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Lines/Wk</td><td>${s.linesPerWeek}</td></tr><tr><td>Sec Rate</td><td>$${s.secretaryRatePerLine.toFixed(2)}</td></tr></table><br/>`;
+    h += '<table border="1"><tr><th style="background:#f59e0b">Team #</th><th style="background:#f59e0b">Team Name</th><th style="background:#f59e0b">Player</th><th style="background:#f59e0b">Role</th>';
     for (let w = 1; w <= s.numWeeks; w++) h += `<th style="background:#f59e0b">Wk ${w}</th>`;
     h += '<th style="background:#f59e0b">Total Paid</th></tr>';
     league.teams.forEach((team, ti) => {
-      const lbl = teamLabel(team, ti);
       team.players.forEach(p => {
         if (!p.name.trim()) return;
         let tw = 0;
-        h += `<tr><td>${esc(lbl)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
+        h += `<tr><td>${ti + 1}</td><td>${esc(team.name)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
         for (let w = 1; w <= s.numWeeks; w++) {
           if (p.isSubstitute) h += '<td style="background:#e5e7eb">N/A</td>';
           else { const pd = league.weeklyPayments[`week_${w}`]?.[p.id]; if (pd) tw++; h += `<td>${pd ? 'PAID' : ''}</td>`; }
@@ -726,6 +725,7 @@ function SettingsTab({ league, updateLeague }) {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className="block text-slate-300 text-sm font-semibold mb-1">Start Date</label><input type="date" value={s.startDate} onChange={e => upd('startDate', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
+            <div><label className="block text-slate-300 text-sm font-semibold mb-1">End Date</label><input type="date" value={s.endDate || ''} onChange={e => upd('endDate', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
             <div><label className="block text-slate-300 text-sm font-semibold mb-1">Day of Week</label><select value={s.dayOfWeek} onChange={e => upd('dayOfWeek', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none">{days.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
           </div>
         </div>
