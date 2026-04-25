@@ -9,7 +9,16 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#0f172a; }</style>
+  <style>
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#000000}
+    ::-webkit-scrollbar{width:6px}
+    ::-webkit-scrollbar-track{background:#000000}
+    ::-webkit-scrollbar-thumb{background:#0e7490;border-radius:3px}
+    .btn-orange{background:linear-gradient(135deg,#e07010 0%,#b85500 100%)!important;box-shadow:0 4px 20px rgba(200,100,0,0.4)}
+    .btn-orange:hover{opacity:0.9}
+    .btn-green{background:linear-gradient(135deg,#1D6F42 0%,#155230 100%)!important;box-shadow:0 4px 12px rgba(29,111,66,0.4)}
+    .btn-green:hover{opacity:0.9}
+  </style>
 </head>
 <body>
 <div id="root"></div>
@@ -66,58 +75,13 @@ function IconLogOut({ size })     { return <SvgIcon size={size}><path d="M9 21H5
 function IconBar({ size })        { return <SvgIcon size={size}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></SvgIcon>; }
 function IconAlert({ size })      { return <SvgIcon size={size}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></SvgIcon>; }
 
-function LeagueLedgerLogo() {
+function LeagueLedgerLogo({ size = "w-40 h-40" }) {
   return (
-    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-20 h-20">
-      {/* Outer ring */}
-      <circle cx="60" cy="60" r="56" fill="#0f1a2e" stroke="url(#ringGrad)" strokeWidth="4"/>
-      {/* Bowling ball - teal */}
-      <circle cx="44" cy="62" r="26" fill="url(#ballGrad)"/>
-      {/* Ball shine */}
-      <ellipse cx="37" cy="52" rx="7" ry="5" fill="white" opacity="0.2" transform="rotate(-20 37 52)"/>
-      {/* Finger holes */}
-      <circle cx="38" cy="56" r="3" fill="#0a1628" opacity="0.7"/>
-      <circle cx="46" cy="50" r="3" fill="#0a1628" opacity="0.7"/>
-      <circle cx="52" cy="58" r="3" fill="#0a1628" opacity="0.7"/>
-      {/* Dollar sign - amber/gold */}
-      <line x1="66" y1="30" x2="66" y2="78" stroke="url(#dollarGrad)" strokeWidth="6" strokeLinecap="round"/>
-      <path d="M76 38C76 34 71 32 66 32C61 32 56 34 56 38C56 42 61 44 66 46C71 48 76 50 76 55C76 60 71 62 66 62C61 62 56 60 56 55" stroke="url(#dollarGrad)" strokeWidth="6" strokeLinecap="round" fill="none"/>
-      {/* Bowling pin */}
-      <ellipse cx="88" cy="44" rx="6" ry="8" fill="url(#pinGrad)" stroke="white" strokeWidth="0.5" opacity="0.95"/>
-      <rect x="84" y="52" width="8" height="14" rx="2" fill="url(#pinGrad)" stroke="white" strokeWidth="0.5" opacity="0.95"/>
-      {/* Pin red stripes */}
-      <rect x="84" y="54" width="8" height="2.5" rx="0.5" fill="#e53935" opacity="0.85"/>
-      <rect x="84" y="58" width="8" height="2.5" rx="0.5" fill="#e53935" opacity="0.85"/>
-      {/* Pin shine */}
-      <ellipse cx="86" cy="46" rx="2" ry="3" fill="white" opacity="0.35"/>
-      {/* Bottom arc text background */}
-      <path d="M 12 72 A 50 50 0 0 0 108 72" fill="#0a1628" opacity="0.6"/>
-      {/* LEAGUE LEDGER text along bottom arc */}
-      <path id="textArc" d="M 16 80 A 46 46 0 0 0 104 80" fill="none"/>
-      <text fontSize="10" fontWeight="bold" fill="white" letterSpacing="2" fontFamily="Arial, sans-serif">
-        <textPath href="#textArc" startOffset="8%">LEAGUE LEDGER</textPath>
-      </text>
-      {/* Gradients */}
-      <defs>
-        <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#38bdf8"/>
-          <stop offset="100%" stopColor="#0369a1"/>
-        </linearGradient>
-        <radialGradient id="ballGrad" cx="40%" cy="35%" r="60%">
-          <stop offset="0%" stopColor="#22d3ee"/>
-          <stop offset="60%" stopColor="#0891b2"/>
-          <stop offset="100%" stopColor="#164e63"/>
-        </radialGradient>
-        <linearGradient id="dollarGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#fbbf24"/>
-          <stop offset="100%" stopColor="#d97706"/>
-        </linearGradient>
-        <linearGradient id="pinGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#f0f9ff"/>
-          <stop offset="100%" stopColor="#bae6fd"/>
-        </linearGradient>
-      </defs>
-    </svg>
+    <img
+      src="https://sstevens7987.github.io/bowling/logo.png"
+      alt="League Ledger"
+      className={`${size} object-contain`}
+    />
   );
 }
 
@@ -170,8 +134,7 @@ function AuthScreen() {
           <div className="mb-3">
             <LeagueLedgerLogo />
           </div>
-          <h1 className="text-3xl font-bold text-white">League Ledger</h1>
-          <p className="text-slate-400 mt-1">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
+          <p className="text-cyan-400 mt-1 text-sm tracking-widest uppercase font-semibold">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
         </div>
         <div className="flex bg-slate-700 rounded-lg p-1 mb-6">
           <button onClick={() => { setMode('signin'); setErr(''); setMsg(''); }} className={`flex-1 py-2 rounded-md font-semibold transition-colors ${mode === 'signin' ? 'bg-amber-500 text-slate-900' : 'text-slate-300 hover:text-white'}`}>Sign In</button>
@@ -261,43 +224,47 @@ function MainApp({ session }) {
     const active = leagues.filter(l => !l.archived);
     const archived = leagues.filter(l => l.archived);
     return (
-      <div className="min-h-screen bg-slate-900 p-4 md:p-8">
+      <div id="ll-home-page" className="min-h-screen p-4 md:p-8" style={{background:'#000000'}}>
         <div className="max-w-5xl mx-auto">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-            <h1 className="text-3xl md:text-4xl font-bold text-white">My Leagues</h1>
-            <button onClick={signOut} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+          {/* ── home-header ── */}
+          <div id="ll-home-header" className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <LeagueLedgerLogo size="w-48 h-48" />
+              <h1 className="text-3xl md:text-4xl font-bold text-white self-center">My Leagues</h1>
+            </div>
+            <button id="ll-signout-btn" onClick={signOut} className="border border-cyan-900/50 hover:border-cyan-500 text-cyan-400 px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors" style={{background:'#060f1e'}}>
               <IconLogOut size="w-4 h-4" /> Sign Out
             </button>
           </div>
-          <p className="text-slate-400 text-sm mb-6">Signed in as {uEmail}</p>
-          {syncErr && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
+          <p id="ll-user-email" className="text-cyan-700 text-sm mb-6">Signed in as {uEmail}</p>
+          {syncErr && <div id="ll-home-error" className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
           {showNew ? (
-            <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-amber-500">
+            <div id="ll-new-league-form" className="rounded-xl p-6 mb-6 border border-cyan-500/50" style={{background:'#0a1628'}}>
               <h3 className="text-xl font-bold text-white mb-4">New League</h3>
               <div className="flex flex-col md:flex-row gap-3">
-                <input type="text" value={newName} onChange={e => setNewName(titleCase(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') createLeague(); }} placeholder="League name (e.g., Monday Night Strikers)" className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" autoFocus />
-                <button disabled={syncing} onClick={createLeague} className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold px-6 py-3 rounded-lg">{syncing ? 'Creating...' : 'Create'}</button>
-                <button onClick={() => { setShowNew(false); setNewName(''); }} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg">Cancel</button>
+                <input type="text" value={newName} onChange={e => setNewName(titleCase(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') createLeague(); }} placeholder="League name (e.g., Monday Night Strikers)" className="flex-1 text-white rounded-lg px-4 py-3 border border-cyan-900/50 focus:border-cyan-500 focus:outline-none" style={{background:'#060f1e'}} autoFocus />
+                <button disabled={syncing} onClick={createLeague} className="disabled:opacity-50 text-slate-900 font-bold px-6 py-3 rounded-lg" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>{syncing ? 'Creating...' : 'Create'}</button>
+                <button onClick={() => { setShowNew(false); setNewName(''); }} className="border border-cyan-900/50 text-cyan-400 px-6 py-3 rounded-lg hover:border-cyan-500" style={{background:'#060f1e'}}>Cancel</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowNew(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg">
+            <button id="ll-new-league-btn" onClick={() => setShowNew(true)} className="btn-orange w-full text-white font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg">
               <IconPlus size="w-6 h-6" /> New League
             </button>
           )}
-          {active.length === 0 && archived.length === 0 && <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg">No leagues yet. Create one to get started.</p></div>}
+          {active.length === 0 && archived.length === 0 && <div id="ll-no-leagues" className="rounded-xl p-12 text-center border border-cyan-900/30" style={{background:'#0a0a0a'}}><p className="text-cyan-700 text-lg">No leagues yet. Create one to get started.</p></div>}
           {active.length > 0 && (
-            <div className="space-y-3 mb-8">
+            <div id="ll-active-leagues" className="space-y-3 mb-8">
               {active.map(lg => (
-                <div key={lg.id} className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-amber-500 transition-colors">
+                <div key={lg.id} id={`ll-league-card-${lg.id}`} className="rounded-xl p-5 border border-cyan-900/30 hover:border-cyan-500/50 transition-colors" style={{background:'linear-gradient(135deg,#0a0a0a,#0d1520)'}}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-xl font-bold text-white truncate">{lg.name}</h3>
-                      <p className="text-slate-400 text-sm">{(lg.teams||[]).length} teams · {lg.settings.dayOfWeek}s · {lg.settings.numWeeks} weeks{lg.ownerId !== uid ? ' · Shared with you' : ''}</p>
+                      <p className="text-cyan-700 text-sm">{(lg.teams||[]).length} teams · {lg.settings.dayOfWeek}s · {lg.settings.numWeeks} weeks{lg.ownerId !== uid ? ' · Shared with you' : ''}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-5 py-2 rounded-lg">Open</button>
-                      {lg.ownerId === uid && <button onClick={() => archiveLeague(lg.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg"><IconArchive size="w-5 h-5" /></button>}
+                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="btn-orange text-white font-bold px-5 py-2 rounded-lg">Open</button>
+                      {lg.ownerId === uid && <button onClick={() => archiveLeague(lg.id)} className="border border-cyan-900/50 text-cyan-400 px-3 py-2 rounded-lg hover:border-cyan-500" style={{background:'#060f1e'}}><IconArchive size="w-5 h-5" /></button>}
                     </div>
                   </div>
                 </div>
@@ -305,19 +272,19 @@ function MainApp({ session }) {
             </div>
           )}
           {archived.length > 0 && (
-            <div>
-              <button onClick={() => setShowArchived(!showArchived)} className="text-slate-400 hover:text-white mb-3 text-sm">{showArchived ? 'Hide' : 'Show'} Archived ({archived.length})</button>
+            <div id="ll-archived-leagues">
+              <button onClick={() => setShowArchived(!showArchived)} className="text-cyan-700 hover:text-cyan-400 mb-3 text-sm">{showArchived ? 'Hide' : 'Show'} Archived ({archived.length})</button>
               {showArchived && (
                 <div className="space-y-3">
                   {archived.map(lg => (
-                    <div key={lg.id} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 opacity-70">
+                    <div key={lg.id} id={`ll-archived-card-${lg.id}`} className="rounded-xl p-5 border border-cyan-900/20 opacity-60" style={{background:'#0a0a0a'}}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0"><h3 className="text-lg font-bold text-slate-300 truncate">{lg.name}</h3><p className="text-slate-500 text-sm">Archived</p></div>
+                        <div className="flex-1 min-w-0"><h3 className="text-lg font-bold text-slate-300 truncate">{lg.name}</h3><p className="text-cyan-900 text-sm">Archived</p></div>
                         <div className="flex gap-2">
-                          <button onClick={() => { setCurId(lg.id); setView('league'); }} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">View</button>
+                          <button onClick={() => { setCurId(lg.id); setView('league'); }} className="border border-cyan-900/50 text-cyan-400 px-4 py-2 rounded-lg text-sm" style={{background:'#060f1e'}}>View</button>
                           {lg.ownerId === uid && <>
-                            <button onClick={() => unarchiveLeague(lg.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">Restore</button>
-                            <button onClick={() => deleteLeague(lg.id)} className="bg-red-900 hover:bg-red-800 text-white px-3 py-2 rounded-lg"><IconTrash size="w-4 h-4" /></button>
+                            <button onClick={() => unarchiveLeague(lg.id)} className="border border-cyan-900/50 text-cyan-400 px-4 py-2 rounded-lg text-sm" style={{background:'#060f1e'}}>Restore</button>
+                            <button onClick={() => deleteLeague(lg.id)} className="bg-red-900/50 hover:bg-red-900 text-white px-3 py-2 rounded-lg"><IconTrash size="w-4 h-4" /></button>
                           </>}
                         </div>
                       </div>
@@ -416,23 +383,25 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6">
+    <div id="ll-league-view" className="min-h-screen p-4 md:p-6" style={{background:'#000000'}}>
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div id="ll-league-header" className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <button onClick={goBack} className="text-slate-400 hover:text-white"><IconChevL size="w-6 h-6" /></button>
-            <h1 className="text-2xl md:text-3xl font-bold text-white truncate">{league.name}</h1>
-            {syncing && <span className="text-xs text-amber-500 animate-pulse">Saving...</span>}
+            <button id="ll-back-btn" onClick={goBack} className="text-cyan-400 hover:text-cyan-300 self-center"><IconChevL size="w-6 h-6" /></button>
+            <LeagueLedgerLogo size="w-24 h-24" />
+            <h1 id="ll-league-title" className="text-2xl md:text-3xl font-bold text-white truncate self-center">{league.name}</h1>
+            {syncing && <span className="text-xs text-amber-400 animate-pulse self-center">Saving...</span>}
           </div>
           <div className="flex gap-2">
-            {isOwner && <button onClick={() => setShowShare(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconShare size="w-5 h-5" /> Share</button>}
-            <button onClick={exportXLS} className="bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> XLS</button>
+            {isOwner && <button id="ll-share-btn" onClick={() => setShowShare(true)} className="border border-cyan-500/50 text-cyan-400 font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:border-cyan-400" style={{background:'#060f1e'}}><IconShare size="w-5 h-5" /> Share</button>}
+            <button id="ll-xls-btn" onClick={exportXLS} className="btn-green text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> XLS</button>
           </div>
         </div>
-        {syncErr && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
-        <div className="flex gap-1 mb-6 border-b border-slate-700 overflow-x-auto">
+        {syncErr && <div id="ll-league-error" className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
+        {/* ── league-tabs ── */}
+        <div id="ll-league-tabs" className="flex gap-1 mb-6 border-b border-cyan-900/30 overflow-x-auto">
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 font-semibold whitespace-nowrap transition-colors ${tab === t.id ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-white'}`}>
+            <button key={t.id} id={`ll-tab-${t.id}`} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 font-semibold whitespace-nowrap transition-colors ${tab === t.id ? 'text-amber-400 border-b-2 border-amber-400' : 'text-cyan-700 hover:text-cyan-400'}`}>
               {t.icon}{t.label}
             </button>
           ))}
