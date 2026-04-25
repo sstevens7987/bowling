@@ -371,6 +371,34 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   };
 
+  const exportRosterXLS = () => {
+    const esc = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let h = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>';
+    h += `<h2>${esc(league.name)} — Roster</h2>`;
+    h += '<table border="1"><tr><th colspan="2" style="background:#f59e0b">Season</th></tr>';
+    h += `<tr><td>Start Date</td><td>${s.startDate}</td></tr><tr><td>End Date</td><td>${s.endDate || ''}</td></tr><tr><td>Day</td><td>${s.dayOfWeek}</td></tr><tr><td>Weeks</td><td>${s.numWeeks}</td></tr></table><br/>`;
+    h += '<table border="1"><tr><th style="background:#f59e0b">Team #</th><th style="background:#f59e0b">Team Name</th><th style="background:#f59e0b">Player</th><th style="background:#f59e0b">Role</th>';
+    for (let w = 1; w <= s.numWeeks; w++) h += `<th style="background:#f59e0b">Wk ${w}</th>`;
+    h += '</tr>';
+    league.teams.forEach((team, ti) => {
+      team.players.forEach(p => {
+        if (!p.name.trim()) return;
+        h += `<tr><td>${ti + 1}</td><td>${esc(team.name)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
+        for (let w = 1; w <= s.numWeeks; w++) {
+          if (p.isSubstitute) h += '<td style="background:#e5e7eb">N/A</td>';
+          else h += `<td>${league.weeklyPayments[`week_${w}`]?.[p.id] ? 'TRUE' : 'FALSE'}</td>`;
+        }
+        h += '</tr>';
+      });
+    });
+    h += '</table></body></html>';
+    const blob = new Blob([h], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${league.name.replace(/[^a-z0-9]/gi,'_')}_roster_${new Date().toISOString().split('T')[0]}.xls`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
   const cwData = getWeekData(selWeek);
   const cwPmts = league.weeklyPayments[`week_${selWeek}`] || {};
 
@@ -393,7 +421,8 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
           </div>
           <div className="flex gap-2">
             {isOwner && <button id="ll-share-btn" onClick={() => setShowShare(true)} className="border border-cyan-500/50 text-cyan-400 font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:border-cyan-400" style={{background:'#060f1e'}}><IconShare size="w-5 h-5" /> Share</button>}
-            <button id="ll-xls-btn" onClick={exportXLS} className="btn-green text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> XLS</button>
+            <button id="ll-roster-xls-btn" onClick={exportRosterXLS} className="border border-cyan-500/50 text-cyan-300 font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:border-cyan-400" style={{background:'#060f1e'}}><IconDownload size="w-5 h-5" /> Roster XLS</button>
+            <button id="ll-xls-btn" onClick={exportXLS} className="btn-green text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> Full XLS</button>
           </div>
         </div>
         {syncErr && <div id="ll-league-error" className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
