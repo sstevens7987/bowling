@@ -802,12 +802,21 @@ function ReportsTab({ league, paying, subs, seasonTotals, getWeekData }) {
     return <span className="text-amber-400 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
   };
 
+  const weeksElapsed = (() => {
+    if (!s.startDate) return s.numWeeks;
+    const start = new Date(s.startDate + 'T00:00:00');
+    const now = new Date(); now.setHours(0,0,0,0);
+    const diffDays = Math.floor((now - start) / 86400000);
+    if (diffDays < 0) return 0;
+    return Math.min(s.numWeeks, Math.floor(diffDays / 7) + 1);
+  })();
+
   const playerStats = paying.map(p => {
     let weeksPaid = 0;
     for (let w = 1; w <= s.numWeeks; w++) {
       if (league.weeklyPayments[`week_${w}`]?.[p.id]) weeksPaid++;
     }
-    const weeksMissed = s.numWeeks - weeksPaid;
+    const weeksMissed = Math.max(0, weeksElapsed - weeksPaid);
     return { id: p.id, name: p.name, team: p.teamName, weeksPaid, weeksMissed, totalPaid: weeksPaid * s.weeklyFeePerPlayer, totalOwed: weeksMissed * s.weeklyFeePerPlayer, completionRate: s.numWeeks > 0 ? Math.round((weeksPaid / s.numWeeks) * 100) : 0 };
   });
 
@@ -829,8 +838,8 @@ function ReportsTab({ league, paying, subs, seasonTotals, getWeekData }) {
     return { name: lbl, playerCount: tp.length, subCount: team.players.filter(p => p.name.trim() && p.isSubstitute).length, collected, expected, rate: expected > 0 ? Math.round((collected / expected) * 100) : 0 };
   }).filter(t => t.playerCount > 0);
 
-  const latestWeek = (() => { for (let w = s.numWeeks; w >= 1; w--) { if (getWeekData(w).paidCount > 0) return w; } return 1; })();
-  const unpaid = paying.filter(p => !league.weeklyPayments[`week_${latestWeek}`]?.[p.id]);
+  const latestWeek = weeksElapsed;
+  const unpaid = latestWeek > 0 ? paying.filter(p => !league.weeklyPayments[`week_${latestWeek}`]?.[p.id]) : [];
   const weeksWithData = Array.from({ length: s.numWeeks }, (_, i) => getWeekData(i + 1)).filter(d => d.paidCount > 0).length;
   const totalExpected = paying.length * weeksWithData * s.weeklyFeePerPlayer;
   const collectionRate = totalExpected > 0 ? Math.round((seasonTotals.totalCollected / totalExpected) * 100) : 0;
@@ -997,8 +1006,8 @@ function ReportsTab({ league, paying, subs, seasonTotals, getWeekData }) {
           <div className="bg-amber-900/30 border border-amber-700 rounded-xl p-4 flex items-start gap-3">
             <IconAlert size="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-amber-200 font-semibold">Outstanding for Week {latestWeek}</p>
-              <p className="text-amber-300/70 text-sm mt-1">{unpaid.length === 0 ? 'Everyone has paid this week!' : `${unpaid.length} player${unpaid.length !== 1 ? 's' : ''} have not paid for week ${latestWeek}.`}</p>
+              <p className="text-amber-200 font-semibold">{latestWeek === 0 ? 'Season has not started' : `Outstanding for Week ${latestWeek}`}</p>
+              <p className="text-amber-300/70 text-sm mt-1">{latestWeek === 0 ? `Season starts ${s.startDate} — no payments are due yet.` : unpaid.length === 0 ? 'Everyone has paid this week!' : `${unpaid.length} player${unpaid.length !== 1 ? 's' : ''} have not paid for week ${latestWeek}.`}</p>
             </div>
           </div>
           {unpaid.length > 0 && (
