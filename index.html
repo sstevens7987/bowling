@@ -85,6 +85,58 @@ function LeagueLedgerLogo({ size = "w-40 h-40" }) {
   );
 }
 
+function PrivacyModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto border border-slate-700" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-2xl font-bold text-white">Privacy Policy & Terms of Use</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><IconX size="w-5 h-5" /></button>
+        </div>
+        <div className="space-y-4 text-slate-300 text-sm leading-relaxed">
+          <section>
+            <h4 className="text-amber-400 font-bold mb-1">Use At Your Own Risk</h4>
+            <p>League Ledger is provided "as is" without warranty of any kind, express or implied. You use this application entirely at your own risk. No guarantee is made regarding accuracy, availability, fitness for a particular purpose, or fitness for league financial recordkeeping.</p>
+          </section>
+          <section>
+            <h4 className="text-amber-400 font-bold mb-1">Zero Liability</h4>
+            <p>The operators and contributors of League Ledger accept zero liability for any loss, damage, dispute, miscalculation, lost data, financial discrepancy, or any other consequence arising from use of this application. You are solely responsible for verifying every figure before relying on it.</p>
+          </section>
+          <section>
+            <h4 className="text-amber-400 font-bold mb-1">Data & Privacy</h4>
+            <p>Account credentials and league data you enter are stored on third-party services (Supabase) used by this application. You are responsible for the data you choose to enter. Do not enter information you are not authorized to store. Shared leagues are visible to anyone you grant access to via the Share feature.</p>
+          </section>
+          <section>
+            <h4 className="text-amber-400 font-bold mb-1">Intellectual Property</h4>
+            <p>The League Ledger name, logo, design, and source presentation are not to be copied, redistributed, mirrored, or used to create derivative products without explicit written permission. Do not copy the intellectual property of this application or of any other party whose work appears in your league data.</p>
+          </section>
+          <section>
+            <h4 className="text-amber-400 font-bold mb-1">Acceptance</h4>
+            <p>By using League Ledger you accept these terms in full. If you do not accept them, discontinue use of the application.</p>
+          </section>
+        </div>
+        <div className="mt-6 flex justify-end">
+          <button onClick={onClose} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-6 py-2 rounded-lg">Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Footer() {
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const year = new Date().getFullYear();
+  return (
+    <>
+      <footer className="mt-12 pt-6 pb-4 border-t border-cyan-900/30 text-center text-cyan-700 text-xs">
+        <p>&copy; {year} League Ledger. All rights reserved.</p>
+        <button onClick={() => setShowPrivacy(true)} className="mt-1 text-cyan-500 hover:text-cyan-300 underline">Privacy Policy & Terms</button>
+      </footer>
+      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)} />}
+    </>
+  );
+}
+
 // ── App root ──────────────────────────────────────────────────────────────────
 function App() {
   const [session, setSession] = useState(null);
@@ -128,7 +180,7 @@ function AuthScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4">
       <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-700">
         <div className="flex flex-col items-center mb-6">
           <div className="mb-3">
@@ -156,6 +208,7 @@ function AuthScreen() {
           </button>
         </div>
       </div>
+      <div className="w-full max-w-md"><Footer /></div>
     </div>
   );
 }
@@ -294,6 +347,7 @@ function MainApp({ session }) {
               )}
             </div>
           )}
+          <Footer />
         </div>
       </div>
     );
@@ -439,6 +493,7 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
         {tab === 'settings' && <SettingsTab league={league} updateLeague={updateLeague} />}
         {tab === 'reports' && <ReportsTab league={league} paying={paying} subs={subs} seasonTotals={seasonTotals} getWeekData={getWeekData} />}
         {showShare && <ShareModal league={league} onClose={() => setShowShare(false)} />}
+        <Footer />
       </div>
     </div>
   );
