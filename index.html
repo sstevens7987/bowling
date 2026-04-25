@@ -71,12 +71,12 @@ function IconLogOut({ size })     { return <SvgIcon size={size}><path d="M9 21H5
 function IconBar({ size })        { return <SvgIcon size={size}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></SvgIcon>; }
 function IconAlert({ size })      { return <SvgIcon size={size}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></SvgIcon>; }
 
-function LeagueLedgerLogo() {
+function LeagueLedgerLogo({ size = "w-40 h-40" }) {
   return (
     <img
       src="https://sstevens7987.github.io/bowling/logo.png"
       alt="League Ledger"
-      className="w-40 h-40 object-contain"
+      className={`${size} object-contain`}
     />
   );
 }
@@ -220,43 +220,47 @@ function MainApp({ session }) {
     const active = leagues.filter(l => !l.archived);
     const archived = leagues.filter(l => l.archived);
     return (
-      <div className="min-h-screen bg-slate-900 p-4 md:p-8">
+      <div id="ll-home-page" className="min-h-screen p-4 md:p-8" style={{background:'#000000'}}>
         <div className="max-w-5xl mx-auto">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-            <h1 className="text-3xl md:text-4xl font-bold text-white">My Leagues</h1>
-            <button onClick={signOut} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+          {/* ── home-header ── */}
+          <div id="ll-home-header" className="flex flex-wrap items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <LeagueLedgerLogo size="w-12 h-12" />
+              <h1 className="text-3xl md:text-4xl font-bold text-white">My Leagues</h1>
+            </div>
+            <button id="ll-signout-btn" onClick={signOut} className="border border-cyan-900/50 hover:border-cyan-500 text-cyan-400 px-4 py-2 rounded-lg flex items-center gap-2 text-sm transition-colors" style={{background:'#060f1e'}}>
               <IconLogOut size="w-4 h-4" /> Sign Out
             </button>
           </div>
-          <p className="text-slate-400 text-sm mb-6">Signed in as {uEmail}</p>
-          {syncErr && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
+          <p id="ll-user-email" className="text-cyan-700 text-sm mb-6">Signed in as {uEmail}</p>
+          {syncErr && <div id="ll-home-error" className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
           {showNew ? (
-            <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-amber-500">
+            <div id="ll-new-league-form" className="rounded-xl p-6 mb-6 border border-cyan-500/50" style={{background:'#0a1628'}}>
               <h3 className="text-xl font-bold text-white mb-4">New League</h3>
               <div className="flex flex-col md:flex-row gap-3">
-                <input type="text" value={newName} onChange={e => setNewName(titleCase(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') createLeague(); }} placeholder="League name (e.g., Monday Night Strikers)" className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" autoFocus />
-                <button disabled={syncing} onClick={createLeague} className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold px-6 py-3 rounded-lg">{syncing ? 'Creating...' : 'Create'}</button>
-                <button onClick={() => { setShowNew(false); setNewName(''); }} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg">Cancel</button>
+                <input type="text" value={newName} onChange={e => setNewName(titleCase(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') createLeague(); }} placeholder="League name (e.g., Monday Night Strikers)" className="flex-1 text-white rounded-lg px-4 py-3 border border-cyan-900/50 focus:border-cyan-500 focus:outline-none" style={{background:'#060f1e'}} autoFocus />
+                <button disabled={syncing} onClick={createLeague} className="disabled:opacity-50 text-slate-900 font-bold px-6 py-3 rounded-lg" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>{syncing ? 'Creating...' : 'Create'}</button>
+                <button onClick={() => { setShowNew(false); setNewName(''); }} className="border border-cyan-900/50 text-cyan-400 px-6 py-3 rounded-lg hover:border-cyan-500" style={{background:'#060f1e'}}>Cancel</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowNew(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg">
+            <button id="ll-new-league-btn" onClick={() => setShowNew(true)} className="w-full text-slate-900 font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)',boxShadow:'0 4px 20px rgba(245,158,11,0.3)'}}>
               <IconPlus size="w-6 h-6" /> New League
             </button>
           )}
-          {active.length === 0 && archived.length === 0 && <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg">No leagues yet. Create one to get started.</p></div>}
+          {active.length === 0 && archived.length === 0 && <div id="ll-no-leagues" className="rounded-xl p-12 text-center border border-cyan-900/30" style={{background:'#0a0a0a'}}><p className="text-cyan-700 text-lg">No leagues yet. Create one to get started.</p></div>}
           {active.length > 0 && (
-            <div className="space-y-3 mb-8">
+            <div id="ll-active-leagues" className="space-y-3 mb-8">
               {active.map(lg => (
-                <div key={lg.id} className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-amber-500 transition-colors">
+                <div key={lg.id} id={`ll-league-card-${lg.id}`} className="rounded-xl p-5 border border-cyan-900/30 hover:border-cyan-500/50 transition-colors" style={{background:'linear-gradient(135deg,#0a0a0a,#0d1520)'}}>
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <h3 className="text-xl font-bold text-white truncate">{lg.name}</h3>
-                      <p className="text-slate-400 text-sm">{(lg.teams||[]).length} teams · {lg.settings.dayOfWeek}s · {lg.settings.numWeeks} weeks{lg.ownerId !== uid ? ' · Shared with you' : ''}</p>
+                      <p className="text-cyan-700 text-sm">{(lg.teams||[]).length} teams · {lg.settings.dayOfWeek}s · {lg.settings.numWeeks} weeks{lg.ownerId !== uid ? ' · Shared with you' : ''}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-5 py-2 rounded-lg">Open</button>
-                      {lg.ownerId === uid && <button onClick={() => archiveLeague(lg.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg"><IconArchive size="w-5 h-5" /></button>}
+                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="text-slate-900 font-bold px-5 py-2 rounded-lg" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}>Open</button>
+                      {lg.ownerId === uid && <button onClick={() => archiveLeague(lg.id)} className="border border-cyan-900/50 text-cyan-400 px-3 py-2 rounded-lg hover:border-cyan-500" style={{background:'#060f1e'}}><IconArchive size="w-5 h-5" /></button>}
                     </div>
                   </div>
                 </div>
@@ -264,19 +268,19 @@ function MainApp({ session }) {
             </div>
           )}
           {archived.length > 0 && (
-            <div>
-              <button onClick={() => setShowArchived(!showArchived)} className="text-slate-400 hover:text-white mb-3 text-sm">{showArchived ? 'Hide' : 'Show'} Archived ({archived.length})</button>
+            <div id="ll-archived-leagues">
+              <button onClick={() => setShowArchived(!showArchived)} className="text-cyan-700 hover:text-cyan-400 mb-3 text-sm">{showArchived ? 'Hide' : 'Show'} Archived ({archived.length})</button>
               {showArchived && (
                 <div className="space-y-3">
                   {archived.map(lg => (
-                    <div key={lg.id} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 opacity-70">
+                    <div key={lg.id} id={`ll-archived-card-${lg.id}`} className="rounded-xl p-5 border border-cyan-900/20 opacity-60" style={{background:'#0a0a0a'}}>
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0"><h3 className="text-lg font-bold text-slate-300 truncate">{lg.name}</h3><p className="text-slate-500 text-sm">Archived</p></div>
+                        <div className="flex-1 min-w-0"><h3 className="text-lg font-bold text-slate-300 truncate">{lg.name}</h3><p className="text-cyan-900 text-sm">Archived</p></div>
                         <div className="flex gap-2">
-                          <button onClick={() => { setCurId(lg.id); setView('league'); }} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">View</button>
+                          <button onClick={() => { setCurId(lg.id); setView('league'); }} className="border border-cyan-900/50 text-cyan-400 px-4 py-2 rounded-lg text-sm" style={{background:'#060f1e'}}>View</button>
                           {lg.ownerId === uid && <>
-                            <button onClick={() => unarchiveLeague(lg.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">Restore</button>
-                            <button onClick={() => deleteLeague(lg.id)} className="bg-red-900 hover:bg-red-800 text-white px-3 py-2 rounded-lg"><IconTrash size="w-4 h-4" /></button>
+                            <button onClick={() => unarchiveLeague(lg.id)} className="border border-cyan-900/50 text-cyan-400 px-4 py-2 rounded-lg text-sm" style={{background:'#060f1e'}}>Restore</button>
+                            <button onClick={() => deleteLeague(lg.id)} className="bg-red-900/50 hover:bg-red-900 text-white px-3 py-2 rounded-lg"><IconTrash size="w-4 h-4" /></button>
                           </>}
                         </div>
                       </div>
@@ -375,23 +379,26 @@ function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) 
   ];
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6">
+    <div id="ll-league-view" className="min-h-screen p-4 md:p-6" style={{background:'#000000'}}>
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        {/* ── league-header ── */}
+        <div id="ll-league-header" className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <button onClick={goBack} className="text-slate-400 hover:text-white"><IconChevL size="w-6 h-6" /></button>
-            <h1 className="text-2xl md:text-3xl font-bold text-white truncate">{league.name}</h1>
-            {syncing && <span className="text-xs text-amber-500 animate-pulse">Saving...</span>}
+            <button id="ll-back-btn" onClick={goBack} className="text-cyan-400 hover:text-cyan-300"><IconChevL size="w-6 h-6" /></button>
+            <LeagueLedgerLogo size="w-10 h-10" />
+            <h1 id="ll-league-title" className="text-2xl md:text-3xl font-bold text-white truncate">{league.name}</h1>
+            {syncing && <span className="text-xs text-amber-400 animate-pulse">Saving...</span>}
           </div>
           <div className="flex gap-2">
-            {isOwner && <button onClick={() => setShowShare(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconShare size="w-5 h-5" /> Share</button>}
-            <button onClick={exportXLS} className="bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> XLS</button>
+            {isOwner && <button id="ll-share-btn" onClick={() => setShowShare(true)} className="border border-cyan-500/50 text-cyan-400 font-bold px-4 py-2 rounded-lg flex items-center gap-2 hover:border-cyan-400" style={{background:'#060f1e'}}><IconShare size="w-5 h-5" /> Share</button>}
+            <button id="ll-xls-btn" onClick={exportXLS} className="text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center gap-2" style={{background:'linear-gradient(135deg,#f59e0b,#d97706)'}}><IconDownload size="w-5 h-5" /> XLS</button>
           </div>
         </div>
-        {syncErr && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
-        <div className="flex gap-1 mb-6 border-b border-slate-700 overflow-x-auto">
+        {syncErr && <div id="ll-league-error" className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
+        {/* ── league-tabs ── */}
+        <div id="ll-league-tabs" className="flex gap-1 mb-6 border-b border-cyan-900/30 overflow-x-auto">
           {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 font-semibold whitespace-nowrap transition-colors ${tab === t.id ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-white'}`}>
+            <button key={t.id} id={`ll-tab-${t.id}`} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 font-semibold whitespace-nowrap transition-colors ${tab === t.id ? 'text-amber-400 border-b-2 border-amber-400' : 'text-cyan-700 hover:text-cyan-400'}`}>
               {t.icon}{t.label}
             </button>
           ))}
