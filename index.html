@@ -3,1007 +3,1039 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#0f172a" />
   <title>League Ledger</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; }
-    .sort-btn { cursor: pointer; user-select: none; }
-    .sort-btn:hover { opacity: 0.8; }
-  </style>
+  <style>body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#0f172a; }</style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useCallback } = React;
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback } = React;
 
-    const titleCase = (str) => { if (!str) return str; return str.replace(/\b\w/g, c => c.toUpperCase()); };
+// ── helpers ──────────────────────────────────────────────────────────────────
+const titleCase = s => s ? s.replace(/\b\w/g, c => c.toUpperCase()) : s;
+const teamLabel = (team, idx) => `Team ${idx + 1}: ${team.name}`;
 
-    // Returns "Team N: Name" for display everywhere
-    const teamLabel = (team, index) => `Team ${index + 1}: ${team.name}`;
+function NumberInput({ value, onChange, min, max, step, className }) {
+  const [local, setLocal] = useState(String(value));
+  useEffect(() => setLocal(String(value)), [value]);
+  const commit = () => {
+    if (local === '' || isNaN(parseFloat(local))) { const f = min ?? 0; setLocal(String(f)); onChange(f); return; }
+    let n = (step && step < 1) ? parseFloat(local) : parseInt(local, 10);
+    if (min !== undefined && n < min) n = min;
+    if (max !== undefined && n > max) n = max;
+    setLocal(String(n)); onChange(n);
+  };
+  return <input type="text" inputMode="decimal" value={local} onChange={e => setLocal(e.target.value)} onBlur={commit} className={className} />;
+}
 
-    function NumberInput({ value, onChange, min, max, step, className }) {
-      const [local, setLocal] = useState(String(value));
-      useEffect(() => { setLocal(String(value)); }, [value]);
-      const handleBlur = () => {
-        if (local === '' || isNaN(parseFloat(local))) { const f = min !== undefined ? min : 0; setLocal(String(f)); onChange(f); return; }
-        let num = step && step < 1 ? parseFloat(local) : parseInt(local, 10);
-        if (min !== undefined && num < min) num = min;
-        if (max !== undefined && num > max) num = max;
-        setLocal(String(num)); onChange(num);
-      };
-      return <input type="text" inputMode="decimal" value={local} onChange={e => setLocal(e.target.value)} onBlur={handleBlur} className={className} />;
-    }
+// ── supabase ──────────────────────────────────────────────────────────────────
+const SUPA_URL = 'https://zoaimvqswzljyxnggonp.supabase.co';
+const SUPA_KEY = 'sb_publishable_3bCKh56FWvlt_HSmbQ4oxg_vtRFMy-D';
+const db = window.supabase.createClient(SUPA_URL, SUPA_KEY);
 
-    const SUPABASE_URL = 'https://zoaimvqswzljyxnggonp.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_3bCKh56FWvlt_HSmbQ4oxg_vtRFMy-D';
-    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ── icons ─────────────────────────────────────────────────────────────────────
+function SvgIcon({ children, size }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={size || "w-5 h-5"}>
+      {children}
+    </svg>
+  );
+}
+function IconPlus({ size })       { return <SvgIcon size={size}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></SvgIcon>; }
+function IconArchive({ size })    { return <SvgIcon size={size}><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></SvgIcon>; }
+function IconTrash({ size })      { return <SvgIcon size={size}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></SvgIcon>; }
+function IconDownload({ size })   { return <SvgIcon size={size}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></SvgIcon>; }
+function IconGear({ size })       { return <SvgIcon size={size}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></SvgIcon>; }
+function IconUsers({ size })      { return <SvgIcon size={size}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></SvgIcon>; }
+function IconCal({ size })        { return <SvgIcon size={size}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></SvgIcon>; }
+function IconChevL({ size })      { return <SvgIcon size={size}><polyline points="15 18 9 12 15 6"/></SvgIcon>; }
+function IconEye({ size })        { return <SvgIcon size={size}><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></SvgIcon>; }
+function IconEyeOff({ size })     { return <SvgIcon size={size}><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></SvgIcon>; }
+function IconCheck({ size })      { return <SvgIcon size={size}><polyline points="20 6 9 17 4 12"/></SvgIcon>; }
+function IconX({ size })          { return <SvgIcon size={size}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></SvgIcon>; }
+function IconSave({ size })       { return <SvgIcon size={size}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></SvgIcon>; }
+function IconShare({ size })      { return <SvgIcon size={size}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></SvgIcon>; }
+function IconLogOut({ size })     { return <SvgIcon size={size}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></SvgIcon>; }
+function IconBar({ size })        { return <SvgIcon size={size}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></SvgIcon>; }
+function IconAlert({ size })      { return <SvgIcon size={size}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></SvgIcon>; }
 
-    // Custom bowling + money logo icon (paths only, no text element)
-    const LeagueLedgerLogo = ({ cls = "w-12 h-12" }) => (
-      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={cls}>
-        {/* Bowling ball */}
-        <circle cx="27" cy="37" r="21" fill="#1e293b" stroke="#f59e0b" strokeWidth="2.5"/>
-        {/* Finger holes */}
-        <circle cx="21" cy="29" r="3" fill="#f59e0b"/>
-        <circle cx="30" cy="25" r="3" fill="#f59e0b"/>
-        <circle cx="35" cy="33" r="3" fill="#f59e0b"/>
-        {/* Money badge circle */}
-        <circle cx="47" cy="17" r="13" fill="#f59e0b"/>
-        <circle cx="47" cy="17" r="10" fill="#0f172a"/>
-        {/* Dollar sign drawn as paths */}
-        {/* Vertical bar */}
-        <line x1="47" y1="9" x2="47" y2="25" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round"/>
-        {/* Top curve of S */}
-        <path d="M51 12.5 C51 10.5 49 9.5 47 9.5 C45 9.5 43 10.5 43 12.5 C43 14.5 45 15.5 47 16 C49 16.5 51 17.5 51 19.5 C51 21.5 49 22.5 47 22.5 C45 22.5 43 21.5 43 19.5" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" fill="none"/>
-      </svg>
-    );
-    const Lock = p => <Ic {...p} d={<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>}/>;
-    const Plus = p => <Ic {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>}/>;
-    const Archive = p => <Ic {...p} d={<><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></>}/>;
-    const Trash2 = p => <Ic {...p} d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></>}/>;
-    const Download = p => <Ic {...p} d={<><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>}/>;
-    const GearIcon = p => <Ic {...p} d={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></>}/>;
-    const Users = p => <Ic {...p} d={<><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>}/>;
-    const CalIcon = p => <Ic {...p} d={<><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>}/>;
-    const ChevL = p => <Ic {...p} d={<polyline points="15 18 9 12 15 6"/>}/>;
-    const Eye = p => <Ic {...p} d={<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}/>;
-    const EyeOff = p => <Ic {...p} d={<><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></>}/>;
-    const Check = p => <Ic {...p} d={<polyline points="20 6 9 17 4 12"/>}/>;
-    const X = p => <Ic {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>}/>;
-    const Save = p => <Ic {...p} d={<><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>}/>;
-    const Share = p => <Ic {...p} d={<><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></>}/>;
-    const LogOut = p => <Ic {...p} d={<><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></>}/>;
-    const BarChart = p => <Ic {...p} d={<><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></>}/>;
-    const AlertCircle = p => <Ic {...p} d={<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>}/>;
+function LeagueLedgerLogo() {
+  return (
+    <svg viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-20 h-20">
+      {/* Outer ring */}
+      <circle cx="60" cy="60" r="56" fill="#0f1a2e" stroke="url(#ringGrad)" strokeWidth="4"/>
+      {/* Bowling ball - teal */}
+      <circle cx="44" cy="62" r="26" fill="url(#ballGrad)"/>
+      {/* Ball shine */}
+      <ellipse cx="37" cy="52" rx="7" ry="5" fill="white" opacity="0.2" transform="rotate(-20 37 52)"/>
+      {/* Finger holes */}
+      <circle cx="38" cy="56" r="3" fill="#0a1628" opacity="0.7"/>
+      <circle cx="46" cy="50" r="3" fill="#0a1628" opacity="0.7"/>
+      <circle cx="52" cy="58" r="3" fill="#0a1628" opacity="0.7"/>
+      {/* Dollar sign - amber/gold */}
+      <line x1="66" y1="30" x2="66" y2="78" stroke="url(#dollarGrad)" strokeWidth="6" strokeLinecap="round"/>
+      <path d="M76 38C76 34 71 32 66 32C61 32 56 34 56 38C56 42 61 44 66 46C71 48 76 50 76 55C76 60 71 62 66 62C61 62 56 60 56 55" stroke="url(#dollarGrad)" strokeWidth="6" strokeLinecap="round" fill="none"/>
+      {/* Bowling pin */}
+      <ellipse cx="88" cy="44" rx="6" ry="8" fill="url(#pinGrad)" stroke="white" strokeWidth="0.5" opacity="0.95"/>
+      <rect x="84" y="52" width="8" height="14" rx="2" fill="url(#pinGrad)" stroke="white" strokeWidth="0.5" opacity="0.95"/>
+      {/* Pin red stripes */}
+      <rect x="84" y="54" width="8" height="2.5" rx="0.5" fill="#e53935" opacity="0.85"/>
+      <rect x="84" y="58" width="8" height="2.5" rx="0.5" fill="#e53935" opacity="0.85"/>
+      {/* Pin shine */}
+      <ellipse cx="86" cy="46" rx="2" ry="3" fill="white" opacity="0.35"/>
+      {/* Bottom arc text background */}
+      <path d="M 12 72 A 50 50 0 0 0 108 72" fill="#0a1628" opacity="0.6"/>
+      {/* LEAGUE LEDGER text along bottom arc */}
+      <path id="textArc" d="M 16 80 A 46 46 0 0 0 104 80" fill="none"/>
+      <text fontSize="10" fontWeight="bold" fill="white" letterSpacing="2" fontFamily="Arial, sans-serif">
+        <textPath href="#textArc" startOffset="8%">LEAGUE LEDGER</textPath>
+      </text>
+      {/* Gradients */}
+      <defs>
+        <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#38bdf8"/>
+          <stop offset="100%" stopColor="#0369a1"/>
+        </linearGradient>
+        <radialGradient id="ballGrad" cx="40%" cy="35%" r="60%">
+          <stop offset="0%" stopColor="#22d3ee"/>
+          <stop offset="60%" stopColor="#0891b2"/>
+          <stop offset="100%" stopColor="#164e63"/>
+        </radialGradient>
+        <linearGradient id="dollarGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fbbf24"/>
+          <stop offset="100%" stopColor="#d97706"/>
+        </linearGradient>
+        <linearGradient id="pinGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#f0f9ff"/>
+          <stop offset="100%" stopColor="#bae6fd"/>
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
 
-    function App() {
-      const [session, setSession] = useState(null);
-      const [loading, setLoading] = useState(true);
-      useEffect(() => {
-        db.auth.getSession().then(({ data: { session } }) => { setSession(session); setLoading(false); });
-        const { data: { subscription } } = db.auth.onAuthStateChange((_e, s) => setSession(s));
-        return () => subscription.unsubscribe();
-      }, []);
-      if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><div className="text-slate-300 text-lg">Loading...</div></div>;
-      if (!session) return <AuthScreen />;
-      return <MainApp session={session} />;
-    }
+// ── App root ──────────────────────────────────────────────────────────────────
+function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    db.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false); });
+    const { data: { subscription } } = db.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => subscription.unsubscribe();
+  }, []);
+  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-300 text-lg">Loading...</div>;
+  if (!session) return <AuthScreen />;
+  return <MainApp session={session} />;
+}
 
-    function AuthScreen() {
-      const [mode, setMode] = useState('signin');
-      const [email, setEmail] = useState('');
-      const [pw, setPw] = useState('');
-      const [pw2, setPw2] = useState('');
-      const [show, setShow] = useState(false);
-      const [err, setErr] = useState('');
-      const [msg, setMsg] = useState('');
-      const [busy, setBusy] = useState(false);
-      const signIn = async () => {
-        setErr(''); setBusy(true);
-        const { error } = await db.auth.signInWithPassword({ email, password: pw });
-        if (error) setErr(error.message);
-        setBusy(false);
-      };
-      const signUp = async () => {
-        setErr(''); setBusy(true);
-        if (pw.length < 6) { setErr('Password must be at least 6 characters'); setBusy(false); return; }
-        if (pw !== pw2) { setErr('Passwords do not match'); setBusy(false); return; }
-        const { data, error } = await db.auth.signUp({ email, password: pw });
-        if (error) setErr(error.message);
-        else if (data.user && !data.session) setMsg('Check your email to confirm, then sign in.');
-        else setMsg('Account created!');
-        setBusy(false);
-      };
-      return (
-        <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-          <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-700">
-            <div className="flex justify-center mb-6">
-              <div className="bg-slate-700 rounded-full p-4 border-2 border-amber-500 shadow-lg shadow-amber-900/40">
-                <LeagueLedgerLogo cls="w-14 h-14" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-bold text-center text-white mb-2">League Ledger</h1>
-            <p className="text-center text-slate-400 mb-6">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
-            <div className="flex bg-slate-700 rounded-lg p-1 mb-6">
-              <button onClick={() => { setMode('signin'); setErr(''); setMsg(''); }} className={`flex-1 py-2 rounded-md font-semibold ${mode === 'signin' ? 'bg-amber-500 text-slate-900' : 'text-slate-300'}`}>Sign In</button>
-              <button onClick={() => { setMode('signup'); setErr(''); setMsg(''); }} className={`flex-1 py-2 rounded-md font-semibold ${mode === 'signup' ? 'bg-amber-500 text-slate-900' : 'text-slate-300'}`}>Sign Up</button>
-            </div>
-            <div className="space-y-4">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" />
-              <div className="relative">
-                <input type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && mode === 'signin') signIn(); }} placeholder="Password" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 pr-12 border border-slate-600 focus:border-amber-500 focus:outline-none" />
-                <button onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">{show ? <EyeOff cls="w-5 h-5" /> : <Eye cls="w-5 h-5" />}</button>
-              </div>
-              {mode === 'signup' && <input type={show ? 'text' : 'password'} value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirm password" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" />}
-              {err && <div className="text-red-400 text-sm text-center">{err}</div>}
-              {msg && <div className="text-green-400 text-sm text-center">{msg}</div>}
-              <button disabled={busy} onClick={mode === 'signin' ? signIn : signUp} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold py-3 rounded-lg text-lg">{busy ? 'Please wait...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}</button>
-            </div>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function AuthScreen() {
+  const [mode, setMode] = useState('signin');
+  const [email, setEmail] = useState('');
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [show, setShow] = useState(false);
+  const [err, setErr] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const signIn = async () => {
+    setErr(''); setBusy(true);
+    const { error } = await db.auth.signInWithPassword({ email, password: pw });
+    if (error) setErr(error.message);
+    setBusy(false);
+  };
+  const signUp = async () => {
+    setErr(''); setBusy(true);
+    if (pw.length < 6) { setErr('Password must be at least 6 characters'); setBusy(false); return; }
+    if (pw !== pw2) { setErr('Passwords do not match'); setBusy(false); return; }
+    const { data, error } = await db.auth.signUp({ email, password: pw });
+    if (error) setErr(error.message);
+    else if (data.user && !data.session) setMsg('Check your email to confirm, then sign in.');
+    else setMsg('Account created!');
+    setBusy(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="bg-slate-800 rounded-2xl shadow-2xl p-8 w-full max-w-md border border-slate-700">
+        <div className="flex flex-col items-center mb-6">
+          <div className="mb-3">
+            <LeagueLedgerLogo />
           </div>
+          <h1 className="text-3xl font-bold text-white">League Ledger</h1>
+          <p className="text-slate-400 mt-1">{mode === 'signin' ? 'Sign in to your account' : 'Create your account'}</p>
         </div>
-      );
-    }
+        <div className="flex bg-slate-700 rounded-lg p-1 mb-6">
+          <button onClick={() => { setMode('signin'); setErr(''); setMsg(''); }} className={`flex-1 py-2 rounded-md font-semibold transition-colors ${mode === 'signin' ? 'bg-amber-500 text-slate-900' : 'text-slate-300 hover:text-white'}`}>Sign In</button>
+          <button onClick={() => { setMode('signup'); setErr(''); setMsg(''); }} className={`flex-1 py-2 rounded-md font-semibold transition-colors ${mode === 'signup' ? 'bg-amber-500 text-slate-900' : 'text-slate-300 hover:text-white'}`}>Sign Up</button>
+        </div>
+        <div className="space-y-4">
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" />
+          <div className="relative">
+            <input type={show ? 'text' : 'password'} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && mode === 'signin') signIn(); }} placeholder="Password" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 pr-12 border border-slate-600 focus:border-amber-500 focus:outline-none" />
+            <button onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white">
+              {show ? <IconEyeOff size="w-5 h-5" /> : <IconEye size="w-5 h-5" />}
+            </button>
+          </div>
+          {mode === 'signup' && <input type={show ? 'text' : 'password'} value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Confirm password" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" />}
+          {err && <p className="text-red-400 text-sm text-center">{err}</p>}
+          {msg && <p className="text-green-400 text-sm text-center">{msg}</p>}
+          <button disabled={busy} onClick={mode === 'signin' ? signIn : signUp} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold py-3 rounded-lg text-lg transition-colors">
+            {busy ? 'Please wait...' : (mode === 'signin' ? 'Sign In' : 'Create Account')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-    function MainApp({ session }) {
-      const [leagues, setLeagues] = useState([]);
-      const [loading, setLoading] = useState(true);
-      const [currentLeagueId, setCurrentLeagueId] = useState(null);
-      const [view, setView] = useState('home');
-      const [showArchived, setShowArchived] = useState(false);
-      const [showNew, setShowNew] = useState(false);
-      const [newName, setNewName] = useState('');
-      const [syncing, setSyncing] = useState(false);
-      const [syncError, setSyncError] = useState('');
-      const userId = session.user.id;
-      const userEmail = session.user.email;
+// ── Main App ──────────────────────────────────────────────────────────────────
+function MainApp({ session }) {
+  const [leagues, setLeagues] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [curId, setCurId] = useState(null);
+  const [view, setView] = useState('home');
+  const [showArchived, setShowArchived] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncErr, setSyncErr] = useState('');
+  const uid = session.user.id;
+  const uEmail = session.user.email;
 
-      const loadLeagues = useCallback(async () => {
-        setLoading(true);
-        const { data, error } = await db.from('leagues').select('*').order('created_at', { ascending: false });
-        if (error) setSyncError('Failed to load: ' + error.message);
-        else setLeagues(data.map(l => ({ id: l.id, name: l.name, archived: l.archived, createdAt: l.created_at, ownerId: l.owner_id, settings: l.settings, teams: l.teams, weeklyPayments: l.weekly_payments || {} })));
-        setLoading(false);
-      }, []);
+  const loadLeagues = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await db.from('leagues').select('*').order('created_at', { ascending: false });
+    if (error) setSyncErr('Failed to load: ' + error.message);
+    else setLeagues(data.map(l => ({ id: l.id, name: l.name, archived: l.archived, createdAt: l.created_at, ownerId: l.owner_id, settings: l.settings, teams: l.teams, weeklyPayments: l.weekly_payments || {} })));
+    setLoading(false);
+  }, []);
 
-      useEffect(() => { loadLeagues(); }, [loadLeagues]);
-      useEffect(() => {
-        const ch = db.channel('leagues_ch').on('postgres_changes', { event: '*', schema: 'public', table: 'leagues' }, () => loadLeagues()).subscribe();
-        return () => db.removeChannel(ch);
-      }, [loadLeagues]);
+  useEffect(() => { loadLeagues(); }, [loadLeagues]);
+  useEffect(() => {
+    const ch = db.channel('ll_ch').on('postgres_changes', { event: '*', schema: 'public', table: 'leagues' }, () => loadLeagues()).subscribe();
+    return () => db.removeChannel(ch);
+  }, [loadLeagues]);
 
-      const saveLeague = async (league) => {
-        setSyncing(true); setSyncError('');
-        const { error } = await db.from('leagues').update({ name: league.name, archived: league.archived, settings: league.settings, teams: league.teams, weekly_payments: league.weeklyPayments }).eq('id', league.id);
-        if (error) setSyncError('Sync error: ' + error.message);
-        setSyncing(false);
-      };
+  const saveLeague = async (lg) => {
+    setSyncing(true); setSyncErr('');
+    const { error } = await db.from('leagues').update({ name: lg.name, archived: lg.archived, settings: lg.settings, teams: lg.teams, weekly_payments: lg.weeklyPayments }).eq('id', lg.id);
+    if (error) setSyncErr('Sync error: ' + error.message);
+    setSyncing(false);
+  };
 
-      const updateLeague = async (updates) => {
-        const updated = leagues.map(l => l.id === currentLeagueId ? { ...l, ...updates } : l);
-        setLeagues(updated);
-        const league = updated.find(l => l.id === currentLeagueId);
-        if (league) await saveLeague(league);
-      };
+  const updateLeague = async (updates) => {
+    const updated = leagues.map(l => l.id === curId ? { ...l, ...updates } : l);
+    setLeagues(updated);
+    const lg = updated.find(l => l.id === curId);
+    if (lg) await saveLeague(lg);
+  };
 
-      const createLeague = async () => {
-        if (!newName.trim()) return;
-        setSyncing(true); setSyncError('');
-        const nl = { name: newName.trim(), archived: false, owner_id: userId, settings: { startDate: new Date().toISOString().split('T')[0], dayOfWeek: 'Monday', numWeeks: 30, weeklyFeePerPlayer: 15, alleyFeePerPlayer: 10, linesPerWeek: 3, secretaryRatePerLine: 0.60 }, teams: [], weekly_payments: {} };
-        const { data, error } = await db.from('leagues').insert(nl).select().single();
-        if (error) { setSyncError('Could not create league: ' + error.message); }
-        else { await loadLeagues(); setCurrentLeagueId(data.id); setNewName(''); setShowNew(false); setView('league'); }
-        setSyncing(false);
-      };
+  const createLeague = async () => {
+    if (!newName.trim()) return;
+    setSyncing(true);
+    const nl = { name: newName.trim(), archived: false, owner_id: uid, settings: { startDate: new Date().toISOString().split('T')[0], dayOfWeek: 'Monday', numWeeks: 30, weeklyFeePerPlayer: 15, alleyFeePerPlayer: 10, linesPerWeek: 3, secretaryRatePerLine: 0.60 }, teams: [], weekly_payments: {} };
+    const { data, error } = await db.from('leagues').insert(nl).select().single();
+    if (error) setSyncErr('Could not create: ' + error.message);
+    else { await loadLeagues(); setCurId(data.id); setNewName(''); setShowNew(false); setView('league'); }
+    setSyncing(false);
+  };
 
-      const archiveLeague = async (id) => { await db.from('leagues').update({ archived: true }).eq('id', id); await loadLeagues(); if (currentLeagueId === id) { setCurrentLeagueId(null); setView('home'); } };
-      const unarchiveLeague = async (id) => { await db.from('leagues').update({ archived: false }).eq('id', id); await loadLeagues(); };
-      const deleteLeague = async (id) => { if (!window.confirm('Permanently delete this league? This cannot be undone.')) return; await db.from('leagues').delete().eq('id', id); await loadLeagues(); if (currentLeagueId === id) { setCurrentLeagueId(null); setView('home'); } };
-      const signOut = async () => { await db.auth.signOut(); };
-      const currentLeague = leagues.find(l => l.id === currentLeagueId);
+  const archiveLeague = async (id) => { await db.from('leagues').update({ archived: true }).eq('id', id); await loadLeagues(); if (curId === id) { setCurId(null); setView('home'); } };
+  const unarchiveLeague = async (id) => { await db.from('leagues').update({ archived: false }).eq('id', id); await loadLeagues(); };
+  const deleteLeague = async (id) => { if (!window.confirm('Permanently delete this league?')) return; await db.from('leagues').delete().eq('id', id); await loadLeagues(); if (curId === id) { setCurId(null); setView('home'); } };
+  const signOut = async () => db.auth.signOut();
+  const curLeague = leagues.find(l => l.id === curId);
 
-      if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center"><div className="text-slate-300 text-lg">Loading your leagues...</div></div>;
+  if (loading) return <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-300 text-lg">Loading your leagues...</div>;
 
-      if (view === 'home' || !currentLeague) {
-        const active = leagues.filter(l => !l.archived);
-        const archived = leagues.filter(l => l.archived);
-        return (
-          <div className="min-h-screen bg-slate-900 p-4 md:p-8">
-            <div className="max-w-5xl mx-auto">
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
-                <h1 className="text-3xl md:text-4xl font-bold text-white">My Leagues</h1>
-                <button onClick={signOut} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm"><LogOut cls="w-4 h-4" /> Sign Out</button>
+  if (view === 'home' || !curLeague) {
+    const active = leagues.filter(l => !l.archived);
+    const archived = leagues.filter(l => l.archived);
+    return (
+      <div className="min-h-screen bg-slate-900 p-4 md:p-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-white">My Leagues</h1>
+            <button onClick={signOut} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm">
+              <IconLogOut size="w-4 h-4" /> Sign Out
+            </button>
+          </div>
+          <p className="text-slate-400 text-sm mb-6">Signed in as {uEmail}</p>
+          {syncErr && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
+          {showNew ? (
+            <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-amber-500">
+              <h3 className="text-xl font-bold text-white mb-4">New League</h3>
+              <div className="flex flex-col md:flex-row gap-3">
+                <input type="text" value={newName} onChange={e => setNewName(titleCase(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') createLeague(); }} placeholder="League name (e.g., Monday Night Strikers)" className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" autoFocus />
+                <button disabled={syncing} onClick={createLeague} className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold px-6 py-3 rounded-lg">{syncing ? 'Creating...' : 'Create'}</button>
+                <button onClick={() => { setShowNew(false); setNewName(''); }} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg">Cancel</button>
               </div>
-              <p className="text-slate-400 text-sm mb-6">Signed in as {userEmail}</p>
-              {syncError && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncError}</div>}
-              {showNew ? (
-                <div className="bg-slate-800 rounded-xl p-6 mb-6 border border-amber-500">
-                  <h3 className="text-xl font-bold text-white mb-4">New League</h3>
-                  <div className="flex flex-col md:flex-row gap-3">
-                    <input type="text" value={newName} onChange={e => setNewName(titleCase(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') createLeague(); }} placeholder="League name (e.g., Monday Night Strikers)" className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" autoFocus />
-                    <button disabled={syncing} onClick={createLeague} className="bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold px-6 py-3 rounded-lg">{syncing ? 'Creating...' : 'Create'}</button>
-                    <button onClick={() => { setShowNew(false); setNewName(''); }} className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-3 rounded-lg">Cancel</button>
+            </div>
+          ) : (
+            <button onClick={() => setShowNew(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg">
+              <IconPlus size="w-6 h-6" /> New League
+            </button>
+          )}
+          {active.length === 0 && archived.length === 0 && <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg">No leagues yet. Create one to get started.</p></div>}
+          {active.length > 0 && (
+            <div className="space-y-3 mb-8">
+              {active.map(lg => (
+                <div key={lg.id} className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-amber-500 transition-colors">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xl font-bold text-white truncate">{lg.name}</h3>
+                      <p className="text-slate-400 text-sm">{(lg.teams||[]).length} teams · {lg.settings.dayOfWeek}s · {lg.settings.numWeeks} weeks{lg.ownerId !== uid ? ' · Shared with you' : ''}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setCurId(lg.id); setView('league'); }} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-5 py-2 rounded-lg">Open</button>
+                      {lg.ownerId === uid && <button onClick={() => archiveLeague(lg.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg"><IconArchive size="w-5 h-5" /></button>}
+                    </div>
                   </div>
                 </div>
-              ) : (
-                <button onClick={() => setShowNew(true)} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-4 rounded-xl mb-6 flex items-center justify-center gap-2 text-lg"><Plus cls="w-6 h-6" /> New League</button>
-              )}
-              {active.length === 0 && archived.length === 0 && <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg">No leagues yet. Create one to get started.</p></div>}
-              {active.length > 0 && (
-                <div className="space-y-3 mb-8">
-                  {active.map(l => (
-                    <div key={l.id} className="bg-slate-800 rounded-xl p-5 border border-slate-700 hover:border-amber-500 transition-colors">
+              ))}
+            </div>
+          )}
+          {archived.length > 0 && (
+            <div>
+              <button onClick={() => setShowArchived(!showArchived)} className="text-slate-400 hover:text-white mb-3 text-sm">{showArchived ? 'Hide' : 'Show'} Archived ({archived.length})</button>
+              {showArchived && (
+                <div className="space-y-3">
+                  {archived.map(lg => (
+                    <div key={lg.id} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 opacity-70">
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-xl font-bold text-white truncate">{l.name}</h3>
-                          <p className="text-slate-400 text-sm">{(l.teams || []).length} teams · {l.settings.dayOfWeek}s · {l.settings.numWeeks} weeks{l.ownerId !== userId ? ' · Shared with you' : ''}</p>
-                        </div>
+                        <div className="flex-1 min-w-0"><h3 className="text-lg font-bold text-slate-300 truncate">{lg.name}</h3><p className="text-slate-500 text-sm">Archived</p></div>
                         <div className="flex gap-2">
-                          <button onClick={() => { setCurrentLeagueId(l.id); setView('league'); }} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-5 py-2 rounded-lg">Open</button>
-                          {l.ownerId === userId && <button onClick={() => archiveLeague(l.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg" title="Archive"><Archive cls="w-5 h-5" /></button>}
+                          <button onClick={() => { setCurId(lg.id); setView('league'); }} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">View</button>
+                          {lg.ownerId === uid && <>
+                            <button onClick={() => unarchiveLeague(lg.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">Restore</button>
+                            <button onClick={() => deleteLeague(lg.id)} className="bg-red-900 hover:bg-red-800 text-white px-3 py-2 rounded-lg"><IconTrash size="w-4 h-4" /></button>
+                          </>}
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-              {archived.length > 0 && (
-                <div>
-                  <button onClick={() => setShowArchived(!showArchived)} className="text-slate-400 hover:text-white mb-3 text-sm">{showArchived ? 'Hide' : 'Show'} Archived ({archived.length})</button>
-                  {showArchived && (
-                    <div className="space-y-3">
-                      {archived.map(l => (
-                        <div key={l.id} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 opacity-70">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div className="flex-1 min-w-0"><h3 className="text-lg font-bold text-slate-300 truncate">{l.name}</h3><p className="text-slate-500 text-sm">Archived</p></div>
-                            <div className="flex gap-2">
-                              <button onClick={() => { setCurrentLeagueId(l.id); setView('league'); }} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">View</button>
-                              {l.ownerId === userId && <>
-                                <button onClick={() => unarchiveLeague(l.id)} className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">Restore</button>
-                                <button onClick={() => deleteLeague(l.id)} className="bg-red-900 hover:bg-red-800 text-white px-3 py-2 rounded-lg"><Trash2 cls="w-4 h-4" /></button>
-                              </>}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return <LeagueView league={curLeague} updateLeague={updateLeague} goBack={() => { setView('home'); setCurId(null); }} userId={uid} syncing={syncing} syncErr={syncErr} />;
+}
+
+// ── League View ───────────────────────────────────────────────────────────────
+function LeagueView({ league, updateLeague, goBack, userId, syncing, syncErr }) {
+  const [tab, setTab] = useState('weeks');
+  const [selWeek, setSelWeek] = useState(1);
+  const [showShare, setShowShare] = useState(false);
+  const s = league.settings;
+  const isOwner = league.ownerId === userId;
+  const allPlayers = league.teams.flatMap((t, ti) => t.players.map(p => ({ ...p, teamName: teamLabel(t, ti), teamId: t.id })));
+  const paying = allPlayers.filter(p => p.name.trim() && !p.isSubstitute);
+  const subs = allPlayers.filter(p => p.name.trim() && p.isSubstitute);
+
+  const getWeekData = (w) => {
+    const pmts = league.weeklyPayments[`week_${w}`] || {};
+    const paid = paying.filter(p => pmts[p.id]);
+    const tot = paid.length * s.weeklyFeePerPlayer;
+    const alley = paid.length * s.alleyFeePerPlayer;
+    const sec = paid.length * s.linesPerWeek * s.secretaryRatePerLine;
+    return { paidCount: paid.length, totalCollected: tot, owedToAlley: alley, secretaryPay: sec, prizePool: tot - alley - sec };
+  };
+
+  const seasonTotals = Array.from({ length: s.numWeeks }, (_, i) => getWeekData(i + 1))
+    .reduce((acc, w) => ({ totalCollected: acc.totalCollected + w.totalCollected, owedToAlley: acc.owedToAlley + w.owedToAlley, secretaryPay: acc.secretaryPay + w.secretaryPay, prizePool: acc.prizePool + w.prizePool }), { totalCollected: 0, owedToAlley: 0, secretaryPay: 0, prizePool: 0 });
+
+  const togglePayment = (wk, pid) => {
+    const pl = allPlayers.find(p => p.id === pid);
+    if (!pl || pl.isSubstitute) return;
+    const key = `week_${wk}`;
+    const cur = league.weeklyPayments[key] || {};
+    updateLeague({ weeklyPayments: { ...league.weeklyPayments, [key]: { ...cur, [pid]: !cur[pid] } } });
+  };
+
+  const markAllPaid = (wk, paid) => {
+    const key = `week_${wk}`;
+    const nw = {};
+    paying.forEach(p => { nw[p.id] = paid; });
+    updateLeague({ weeklyPayments: { ...league.weeklyPayments, [key]: nw } });
+  };
+
+  const exportXLS = () => {
+    const esc = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let h = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>';
+    h += `<h2>${esc(league.name)}</h2>`;
+    h += '<table border="1"><tr><th colspan="2" style="background:#f59e0b">League Settings</th></tr>';
+    h += `<tr><td>Start Date</td><td>${s.startDate}</td></tr><tr><td>Day</td><td>${s.dayOfWeek}</td></tr><tr><td>Teams</td><td>${league.teams.length}</td></tr><tr><td>Paying Players</td><td>${paying.length}</td></tr><tr><td>Substitutes</td><td>${subs.length}</td></tr><tr><td>Weeks</td><td>${s.numWeeks}</td></tr><tr><td>Weekly Fee</td><td>$${s.weeklyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Alley Fee</td><td>$${s.alleyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Lines/Wk</td><td>${s.linesPerWeek}</td></tr><tr><td>Sec Rate</td><td>$${s.secretaryRatePerLine.toFixed(2)}</td></tr></table><br/>`;
+    h += '<table border="1"><tr><th style="background:#f59e0b">Team</th><th style="background:#f59e0b">Player</th><th style="background:#f59e0b">Role</th>';
+    for (let w = 1; w <= s.numWeeks; w++) h += `<th style="background:#f59e0b">Wk ${w}</th>`;
+    h += '<th style="background:#f59e0b">Total Paid</th></tr>';
+    league.teams.forEach((team, ti) => {
+      const lbl = teamLabel(team, ti);
+      team.players.forEach(p => {
+        if (!p.name.trim()) return;
+        let tw = 0;
+        h += `<tr><td>${esc(lbl)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
+        for (let w = 1; w <= s.numWeeks; w++) {
+          if (p.isSubstitute) h += '<td style="background:#e5e7eb">N/A</td>';
+          else { const pd = league.weeklyPayments[`week_${w}`]?.[p.id]; if (pd) tw++; h += `<td>${pd ? 'PAID' : ''}</td>`; }
+        }
+        h += `<td>${p.isSubstitute ? 'N/A' : '$' + (tw * s.weeklyFeePerPlayer).toFixed(2)}</td></tr>`;
+      });
+    });
+    h += '</table><br/><table border="1"><tr><th style="background:#f59e0b">Week</th><th style="background:#f59e0b">Paid</th><th style="background:#f59e0b">Collected</th><th style="background:#f59e0b">To Alley</th><th style="background:#f59e0b">Sec Pay</th><th style="background:#f59e0b">Prize Pool</th></tr>';
+    for (let w = 1; w <= s.numWeeks; w++) { const d = getWeekData(w); h += `<tr><td>Week ${w}</td><td>${d.paidCount}</td><td>$${d.totalCollected.toFixed(2)}</td><td>$${d.owedToAlley.toFixed(2)}</td><td>$${d.secretaryPay.toFixed(2)}</td><td>$${d.prizePool.toFixed(2)}</td></tr>`; }
+    h += `<tr style="font-weight:bold;background:#fef3c7"><td>TOTAL</td><td></td><td>$${seasonTotals.totalCollected.toFixed(2)}</td><td>$${seasonTotals.owedToAlley.toFixed(2)}</td><td>$${seasonTotals.secretaryPay.toFixed(2)}</td><td>$${seasonTotals.prizePool.toFixed(2)}</td></tr></table></body></html>`;
+    const blob = new Blob([h], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${league.name.replace(/[^a-z0-9]/gi,'_')}_${new Date().toISOString().split('T')[0]}.xls`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  const cwData = getWeekData(selWeek);
+  const cwPmts = league.weeklyPayments[`week_${selWeek}`] || {};
+
+  const tabs = [
+    { id: 'weeks', label: 'Weekly Tracking', icon: <IconCal size="w-4 h-4" /> },
+    { id: 'roster', label: 'Team Roster', icon: <IconUsers size="w-4 h-4" /> },
+    { id: 'settings', label: 'Settings', icon: <IconGear size="w-4 h-4" /> },
+    { id: 'reports', label: 'Reports', icon: <IconBar size="w-4 h-4" /> },
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-900 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <button onClick={goBack} className="text-slate-400 hover:text-white"><IconChevL size="w-6 h-6" /></button>
+            <h1 className="text-2xl md:text-3xl font-bold text-white truncate">{league.name}</h1>
+            {syncing && <span className="text-xs text-amber-500 animate-pulse">Saving...</span>}
+          </div>
+          <div className="flex gap-2">
+            {isOwner && <button onClick={() => setShowShare(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconShare size="w-5 h-5" /> Share</button>}
+            <button onClick={exportXLS} className="bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconDownload size="w-5 h-5" /> XLS</button>
+          </div>
+        </div>
+        {syncErr && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncErr}</div>}
+        <div className="flex gap-1 mb-6 border-b border-slate-700 overflow-x-auto">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} className={`flex items-center gap-2 px-4 py-3 font-semibold whitespace-nowrap transition-colors ${tab === t.id ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-white'}`}>
+              {t.icon}{t.label}
+            </button>
+          ))}
+        </div>
+        {tab === 'weeks' && <WeeksTab league={league} selWeek={selWeek} setSelWeek={setSelWeek} paying={paying} subs={subs} cwPmts={cwPmts} cwData={cwData} seasonTotals={seasonTotals} togglePayment={togglePayment} markAllPaid={markAllPaid} getWeekData={getWeekData} />}
+        {tab === 'roster' && <RosterTab league={league} updateLeague={updateLeague} />}
+        {tab === 'settings' && <SettingsTab league={league} updateLeague={updateLeague} />}
+        {tab === 'reports' && <ReportsTab league={league} paying={paying} subs={subs} seasonTotals={seasonTotals} getWeekData={getWeekData} />}
+        {showShare && <ShareModal league={league} onClose={() => setShowShare(false)} />}
+      </div>
+    </div>
+  );
+}
+
+// ── Share Modal ───────────────────────────────────────────────────────────────
+function ShareModal({ league, onClose }) {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [ok, setOk] = useState('');
+  const [shared, setShared] = useState([]);
+  const load = useCallback(async () => {
+    const { data } = await db.from('league_access').select('id,user_id,role').eq('league_id', league.id);
+    setShared(data || []);
+  }, [league.id]);
+  useEffect(() => { load(); }, [load]);
+  const grant = async () => {
+    setErr(''); setOk(''); setBusy(true);
+    const e = email.trim().toLowerCase();
+    if (!e) { setErr('Enter an email'); setBusy(false); return; }
+    try {
+      const { data: uid, error: le } = await db.rpc('get_user_id_by_email', { lookup_email: e });
+      if (le || !uid) { setErr('User not found. They must sign up first.'); setBusy(false); return; }
+      const { error: ie } = await db.from('league_access').insert({ league_id: league.id, user_id: uid, role: 'editor' });
+      if (ie) setErr(ie.code === '23505' ? 'Already has access.' : ie.message);
+      else { setOk(`Access granted to ${e}`); setEmail(''); await load(); }
+    } catch(ex) { setErr('Error: ' + ex.message); }
+    setBusy(false);
+  };
+  const revoke = async (id) => { if (!window.confirm('Remove access?')) return; await db.from('league_access').delete().eq('id', id); await load(); };
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={onClose}>
+      <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold text-white">Share League</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><IconX size="w-5 h-5" /></button>
+        </div>
+        <p className="text-slate-400 text-sm mb-4">Enter the email of someone who has already signed up.</p>
+        <div className="space-y-3">
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" />
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+          {ok && <p className="text-green-400 text-sm">{ok}</p>}
+          <button disabled={busy} onClick={grant} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold py-3 rounded-lg">{busy ? 'Granting...' : 'Grant Access'}</button>
+        </div>
+        {shared.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-slate-700">
+            <h4 className="text-white font-semibold mb-3">People with access</h4>
+            <div className="space-y-2">
+              {shared.map(u => (
+                <div key={u.id} className="flex items-center justify-between bg-slate-700 rounded-lg p-3">
+                  <span className="text-slate-300 text-sm truncate">{u.user_id.substring(0,12)}...</span>
+                  <button onClick={() => revoke(u.id)} className="text-red-400 hover:text-red-300 text-sm">Remove</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Weeks Tab ─────────────────────────────────────────────────────────────────
+function WeeksTab({ league, selWeek, setSelWeek, paying, subs, cwPmts, cwData, seasonTotals, togglePayment, markAllPaid, getWeekData }) {
+  const s = league.settings;
+  if (paying.length === 0) return (
+    <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700">
+      <p className="text-slate-400 text-lg mb-2">No paying players yet.</p>
+      <p className="text-slate-500 text-sm">Add players on the Team Roster tab. Substitutes don't pay.</p>
+    </div>
+  );
+
+  const payByTeam = {};
+  const subByTeam = {};
+  league.teams.forEach((t, ti) => {
+    const lbl = teamLabel(t, ti);
+    const py = t.players.filter(p => p.name.trim() && !p.isSubstitute);
+    const sb = t.players.filter(p => p.name.trim() && p.isSubstitute);
+    if (py.length) payByTeam[lbl] = py;
+    if (sb.length) subByTeam[lbl] = sb;
+  });
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <label className="block text-slate-300 text-sm font-semibold mb-2">Select Week</label>
+        <div className="flex flex-wrap gap-2">
+          {Array.from({ length: s.numWeeks }, (_, i) => i + 1).map(w => {
+            const d = getWeekData(w);
+            return <button key={w} onClick={() => setSelWeek(w)} className={`px-4 py-2 rounded-lg font-semibold text-sm ${selWeek === w ? 'bg-amber-500 text-slate-900' : d.paidCount > 0 ? 'bg-slate-700 text-white border border-green-600' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{w}</button>;
+          })}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Week {selWeek} Collected</p><p className="text-2xl font-bold text-white">${cwData.totalCollected.toFixed(2)}</p><p className="text-xs text-slate-500">{cwData.paidCount} of {paying.length} paid</p></div>
+        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Owed to Alley</p><p className="text-2xl font-bold text-red-400">${cwData.owedToAlley.toFixed(2)}</p></div>
+        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Secretary Pay</p><p className="text-2xl font-bold text-blue-400">${cwData.secretaryPay.toFixed(2)}</p></div>
+        <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Prize Pool Added</p><p className="text-2xl font-bold text-green-400">${cwData.prizePool.toFixed(2)}</p></div>
+      </div>
+      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="text-xl font-bold text-white">Week {selWeek} Payments</h3>
+          <div className="flex gap-2">
+            <button onClick={() => markAllPaid(selWeek, true)} className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-sm">Mark All Paid</button>
+            <button onClick={() => markAllPaid(selWeek, false)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm">Clear All</button>
+          </div>
+        </div>
+        <div className="space-y-4">
+          {Object.entries(payByTeam).map(([lbl, players]) => (
+            <div key={lbl}>
+              <div className="flex items-baseline justify-between mb-2">
+                <h4 className="text-amber-500 font-bold">{lbl}</h4>
+                {subByTeam[lbl] && <span className="text-xs text-blue-300">Subs: {subByTeam[lbl].map(sp => sp.name).join(', ')}</span>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {players.map(pl => {
+                  const isPaid = cwPmts[pl.id];
+                  return (
+                    <button key={pl.id} onClick={() => togglePayment(selWeek, pl.id)} className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all ${isPaid ? 'bg-green-900/50 border-green-600 text-white' : 'bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500'}`}>
+                      <span className="font-medium text-left">{pl.name}</span>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isPaid ? 'bg-green-500' : 'bg-slate-600'}`}>
+                        {isPaid ? <IconCheck size="w-5 h-5 text-white" /> : <IconX size="w-5 h-5 text-slate-400" />}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        {subs.length > 0 && <p className="mt-4 pt-4 border-t border-slate-700 text-xs text-slate-500 italic">{subs.length} sub{subs.length !== 1 ? 's' : ''} on roster — substitutes never pay and are not tracked here.</p>}
+      </div>
+      <div className="bg-gradient-to-br from-amber-900/30 to-slate-800 rounded-xl p-5 border border-amber-700">
+        <h3 className="text-xl font-bold text-white mb-4">Season Totals</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div><p className="text-slate-400 text-sm">Total Collected</p><p className="text-2xl font-bold text-white">${seasonTotals.totalCollected.toFixed(2)}</p></div>
+          <div><p className="text-slate-400 text-sm">To Alley</p><p className="text-2xl font-bold text-red-400">${seasonTotals.owedToAlley.toFixed(2)}</p></div>
+          <div><p className="text-slate-400 text-sm">Secretary Pay</p><p className="text-2xl font-bold text-blue-400">${seasonTotals.secretaryPay.toFixed(2)}</p></div>
+          <div><p className="text-slate-400 text-sm">Prize Pool</p><p className="text-2xl font-bold text-green-400">${seasonTotals.prizePool.toFixed(2)}</p></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Roster Tab ────────────────────────────────────────────────────────────────
+function RosterTab({ league, updateLeague }) {
+  const [localTeams, setLocalTeams] = useState(() => JSON.parse(JSON.stringify(league.teams)));
+  const [savedMap, setSavedMap] = useState(() => { const o = {}; league.teams.forEach(t => { o[t.id] = true; }); return o; });
+
+  useEffect(() => {
+    setLocalTeams(JSON.parse(JSON.stringify(league.teams)));
+    const o = {}; league.teams.forEach(t => { o[t.id] = true; }); setSavedMap(o);
+  }, [league.teams]);
+
+  const dirty = (id) => setSavedMap(p => ({ ...p, [id]: false }));
+  const anyUnsaved = Object.values(savedMap).some(v => !v);
+
+  const updName = (id, name) => { setLocalTeams(p => p.map(t => t.id === id ? { ...t, name: titleCase(name) } : t)); dirty(id); };
+  const updPlayer = (tid, pid, name) => { setLocalTeams(p => p.map(t => t.id === tid ? { ...t, players: t.players.map(pl => pl.id === pid ? { ...pl, name: titleCase(name) } : pl) } : t)); dirty(tid); };
+  const toggleSub = (tid, pid) => {
+    const team = localTeams.find(t => t.id === tid);
+    const pl = team?.players.find(p => p.id === pid);
+    if (!pl) return;
+    const newSub = !pl.isSubstitute;
+    setLocalTeams(p => p.map(t => t.id === tid ? { ...t, players: t.players.map(x => x.id === pid ? { ...x, isSubstitute: newSub } : x) } : t));
+    dirty(tid);
+    if (newSub && league.weeklyPayments) {
+      const cp = {};
+      let changed = false;
+      Object.entries(league.weeklyPayments).forEach(([wk, wd]) => {
+        const cw = {};
+        Object.entries(wd).forEach(([p2, v]) => { if (p2 !== pid) cw[p2] = v; else changed = true; });
+        cp[wk] = cw;
+      });
+      if (changed) updateLeague({ weeklyPayments: cp });
+    }
+  };
+
+  const saveTeam = async (id) => {
+    const teams = league.teams.map(t => { const loc = localTeams.find(lt => lt.id === id); return t.id === id && loc ? loc : t; });
+    await updateLeague({ teams });
+    setSavedMap(p => ({ ...p, [id]: true }));
+  };
+  const saveAll = async () => { await updateLeague({ teams: localTeams }); const o = {}; localTeams.forEach(t => { o[t.id] = true; }); setSavedMap(o); };
+  const addTeam = async () => {
+    const nt = { id: `t_${Date.now()}_${Math.random().toString(36).substr(2,5)}`, name: `Team ${league.teams.length + 1}`, players: [] };
+    await updateLeague({ teams: [...league.teams, nt] });
+  };
+  const removeTeam = async (id) => {
+    const t = league.teams.find(t => t.id === id);
+    if (!t || !window.confirm(`Remove "${teamLabel(t, league.teams.findIndex(x => x.id === id))}" and all its players?`)) return;
+    const rmIds = t.players.map(p => p.id);
+    const cp = {};
+    Object.entries(league.weeklyPayments).forEach(([wk, wd]) => { const cw = {}; Object.entries(wd).forEach(([p, v]) => { if (!rmIds.includes(p)) cw[p] = v; }); cp[wk] = cw; });
+    await updateLeague({ teams: league.teams.filter(t => t.id !== id), weeklyPayments: cp });
+  };
+  const addPlayer = (tid) => {
+    const np = { id: `p_${Date.now()}_${Math.random().toString(36).substr(2,5)}`, name: '', isSubstitute: false };
+    setLocalTeams(p => p.map(t => t.id === tid ? { ...t, players: [...t.players, np] } : t));
+    dirty(tid);
+  };
+  const removePlayer = (tid, pid) => {
+    const t = localTeams.find(t => t.id === tid);
+    const pl = t?.players.find(p => p.id === pid);
+    if (pl?.name.trim() && !window.confirm(`Remove "${pl.name}"?`)) return;
+    setLocalTeams(prev => prev.map(t => t.id === tid ? { ...t, players: t.players.filter(p => p.id !== pid) } : t));
+    dirty(tid);
+  };
+
+  const totReg = localTeams.reduce((s, t) => s + t.players.filter(p => p.name.trim() && !p.isSubstitute).length, 0);
+  const totSub = localTeams.reduce((s, t) => s + t.players.filter(p => p.name.trim() && p.isSubstitute).length, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-slate-300">
+          <span className="text-white font-bold">{localTeams.length}</span> teams · <span className="text-white font-bold">{totReg}</span> regular · <span className="text-white font-bold">{totSub}</span> subs
+          {anyUnsaved && <span className="ml-3 text-amber-400 font-semibold">· Unsaved changes</span>}
+        </div>
+        <div className="flex gap-2">
+          {anyUnsaved && <button onClick={saveAll} className="bg-green-600 hover:bg-green-500 text-white font-bold px-5 py-2 rounded-lg flex items-center gap-2"><IconSave size="w-5 h-5" /> Save All</button>}
+          <button onClick={addTeam} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center gap-2"><IconPlus size="w-5 h-5" /> Add Team</button>
+        </div>
+      </div>
+      <div className="bg-blue-900/30 rounded-xl p-3 border border-blue-800 text-sm text-blue-200">
+        <strong>Substitutes never pay.</strong> Check "Sub" to exclude a player from all payment tracking.
+      </div>
+      {localTeams.length === 0 && <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg">No teams yet. Click "Add Team" to get started.</p></div>}
+      {localTeams.map((team, ti) => {
+        const saved = savedMap[team.id];
+        const lbl = teamLabel(team, ti);
+        return (
+          <div key={team.id} className={`bg-slate-800 rounded-xl border ${saved === false ? 'border-amber-500' : 'border-slate-700'}`}>
+            <div className="p-4 border-b border-slate-700">
+              <div className="flex gap-2 items-center">
+                <div className="flex-1">
+                  <label className="block text-amber-500 text-xs font-bold mb-1 uppercase tracking-wide">{lbl}</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 font-bold whitespace-nowrap shrink-0">Team {ti + 1}:</span>
+                    <input type="text" value={team.name} onChange={e => updName(team.id, e.target.value)} placeholder="Team name" className="flex-1 bg-slate-700 text-white text-lg font-bold rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" />
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => saveTeam(team.id)} disabled={!!saved} className={`px-4 py-2 rounded-lg flex items-center gap-2 font-bold text-sm whitespace-nowrap ${saved ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`}>
+                    <IconSave size="w-4 h-4" />{saved ? '✓ Saved' : 'Save'}
+                  </button>
+                  <button onClick={() => removeTeam(team.id)} className="bg-red-900 hover:bg-red-800 text-white px-3 py-2 rounded-lg"><IconTrash size="w-4 h-4" /></button>
+                </div>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-slate-400 text-sm font-semibold">Players ({team.players.length})</span>
+                <button onClick={() => addPlayer(team.id)} className="bg-slate-700 hover:bg-slate-600 text-amber-400 border border-slate-600 px-3 py-1 rounded-lg text-sm flex items-center gap-1 font-semibold"><IconPlus size="w-4 h-4" /> Add Player</button>
+              </div>
+              {team.players.length === 0
+                ? <p className="text-slate-500 text-sm italic text-center py-4">No players yet. Click "Add Player" above.</p>
+                : (
+                  <div className="space-y-2">
+                    {team.players.map((pl, pi) => (
+                      <div key={pl.id} className={`flex items-center gap-2 ${pl.isSubstitute ? 'opacity-70' : ''}`}>
+                        <span className="text-slate-500 text-sm w-6 text-right shrink-0">{pi + 1}.</span>
+                        <input type="text" value={pl.name} onChange={e => updPlayer(team.id, pl.id, e.target.value)} placeholder="Player name" className="flex-1 bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none min-w-0" />
+                        <label className={`flex items-center gap-1 rounded-lg px-3 py-2 border cursor-pointer shrink-0 ${pl.isSubstitute ? 'bg-blue-900/60 border-blue-500' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}`}>
+                          <input type="checkbox" checked={pl.isSubstitute} onChange={() => toggleSub(team.id, pl.id)} className="w-4 h-4" />
+                          <span className={`text-sm font-semibold ${pl.isSubstitute ? 'text-blue-300' : 'text-slate-300'}`}>Sub</span>
+                        </label>
+                        <button onClick={() => removePlayer(team.id, pl.id)} className="bg-red-900 hover:bg-red-800 text-white px-2 py-2 rounded-lg shrink-0"><IconX size="w-4 h-4" /></button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              }
+              {saved === false && (
+                <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
+                  <button onClick={() => saveTeam(team.id)} className="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-2 rounded-lg flex items-center gap-2">
+                    <IconSave size="w-4 h-4" /> Save {lbl}
+                  </button>
                 </div>
               )}
             </div>
           </div>
         );
-      }
-      return <LeagueView league={currentLeague} updateLeague={updateLeague} goBack={() => { setView('home'); setCurrentLeagueId(null); }} userId={userId} syncing={syncing} syncError={syncError} />;
-    }
+      })}
+      {localTeams.length > 0 && (
+        <button onClick={addTeam} className="w-full bg-slate-800 hover:bg-slate-700 border-2 border-dashed border-slate-600 hover:border-amber-500 text-slate-300 font-semibold py-4 rounded-xl flex items-center justify-center gap-2">
+          <IconPlus size="w-5 h-5" /> Add Another Team
+        </button>
+      )}
+    </div>
+  );
+}
 
-    function LeagueView({ league, updateLeague, goBack, userId, syncing, syncError }) {
-      const [tab, setTab] = useState('weeks');
-      const [selectedWeek, setSelectedWeek] = useState(1);
-      const [showShare, setShowShare] = useState(false);
-      const s = league.settings;
-      const isOwner = league.ownerId === userId;
-      const allPlayers = league.teams.flatMap((t, ti) => t.players.map(p => ({ ...p, teamName: teamLabel(t, ti), teamId: t.id })));
-      const payingPlayers = allPlayers.filter(p => p.name.trim() && !p.isSubstitute);
-      const subPlayers = allPlayers.filter(p => p.name.trim() && p.isSubstitute);
-
-      const getWeekData = (weekNum) => {
-        const wk = `week_${weekNum}`;
-        const pmts = league.weeklyPayments[wk] || {};
-        const paid = payingPlayers.filter(p => pmts[p.id]);
-        const tot = paid.length * s.weeklyFeePerPlayer;
-        const alley = paid.length * s.alleyFeePerPlayer;
-        const sec = paid.length * s.linesPerWeek * s.secretaryRatePerLine;
-        return { paidCount: paid.length, totalCollected: tot, owedToAlley: alley, secretaryPay: sec, prizePool: tot - alley - sec };
-      };
-
-      const seasonTotals = Array.from({ length: s.numWeeks }, (_, i) => getWeekData(i + 1))
-        .reduce((acc, w) => ({ totalCollected: acc.totalCollected + w.totalCollected, owedToAlley: acc.owedToAlley + w.owedToAlley, secretaryPay: acc.secretaryPay + w.secretaryPay, prizePool: acc.prizePool + w.prizePool }), { totalCollected: 0, owedToAlley: 0, secretaryPay: 0, prizePool: 0 });
-
-      const togglePayment = (weekNum, playerId) => {
-        const p = allPlayers.find(p => p.id === playerId);
-        if (!p || p.isSubstitute) return;
-        const wk = `week_${weekNum}`;
-        const cur = league.weeklyPayments[wk] || {};
-        updateLeague({ weeklyPayments: { ...league.weeklyPayments, [wk]: { ...cur, [playerId]: !cur[playerId] } } });
-      };
-
-      const markAllPaid = (weekNum, paid) => {
-        const wk = `week_${weekNum}`;
-        const nw = {};
-        payingPlayers.forEach(p => { nw[p.id] = paid; });
-        updateLeague({ weeklyPayments: { ...league.weeklyPayments, [wk]: nw } });
-      };
-
-      const exportToXLS = () => {
-        const esc = str => String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        let h = '<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="UTF-8"></head><body>';
-        h += `<h2>${esc(league.name)}</h2>`;
-        h += '<table border="1"><tr><th colspan="2" style="background:#f59e0b">League Settings</th></tr>';
-        h += `<tr><td>Start Date</td><td>${s.startDate}</td></tr><tr><td>Day of Week</td><td>${s.dayOfWeek}</td></tr><tr><td>Teams</td><td>${league.teams.length}</td></tr><tr><td>Paying Players</td><td>${payingPlayers.length}</td></tr><tr><td>Substitutes</td><td>${subPlayers.length}</td></tr><tr><td>Weeks</td><td>${s.numWeeks}</td></tr><tr><td>Weekly Fee</td><td>$${s.weeklyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Alley Fee</td><td>$${s.alleyFeePerPlayer.toFixed(2)}</td></tr><tr><td>Lines/Week</td><td>${s.linesPerWeek}</td></tr><tr><td>Secretary Rate</td><td>$${s.secretaryRatePerLine.toFixed(2)}</td></tr></table><br/>`;
-        h += '<table border="1"><tr><th style="background:#f59e0b">Team</th><th style="background:#f59e0b">Player</th><th style="background:#f59e0b">Role</th>';
-        for (let w = 1; w <= s.numWeeks; w++) h += `<th style="background:#f59e0b">Wk ${w}</th>`;
-        h += '<th style="background:#f59e0b">Total Paid</th></tr>';
-        league.teams.forEach((team, ti) => {
-          const lbl = teamLabel(team, ti);
-          team.players.forEach(p => {
-            if (!p.name.trim()) return;
-            let tw = 0;
-            h += `<tr><td>${esc(lbl)}</td><td>${esc(p.name)}</td><td>${p.isSubstitute ? 'Sub' : 'Regular'}</td>`;
-            for (let w = 1; w <= s.numWeeks; w++) {
-              if (p.isSubstitute) h += '<td style="background:#e5e7eb">N/A</td>';
-              else { const pd = league.weeklyPayments[`week_${w}`]?.[p.id]; if (pd) tw++; h += `<td>${pd ? 'PAID' : ''}</td>`; }
-            }
-            h += `<td>${p.isSubstitute ? 'N/A' : '$' + (tw * s.weeklyFeePerPlayer).toFixed(2)}</td></tr>`;
-          });
-        });
-        h += '</table><br/><table border="1"><tr><th style="background:#f59e0b">Week</th><th style="background:#f59e0b">Paid</th><th style="background:#f59e0b">Collected</th><th style="background:#f59e0b">To Alley</th><th style="background:#f59e0b">Sec Pay</th><th style="background:#f59e0b">Prize Pool</th></tr>';
-        for (let w = 1; w <= s.numWeeks; w++) { const d = getWeekData(w); h += `<tr><td>Week ${w}</td><td>${d.paidCount}</td><td>$${d.totalCollected.toFixed(2)}</td><td>$${d.owedToAlley.toFixed(2)}</td><td>$${d.secretaryPay.toFixed(2)}</td><td>$${d.prizePool.toFixed(2)}</td></tr>`; }
-        h += `<tr style="font-weight:bold;background:#fef3c7"><td>TOTAL</td><td></td><td>$${seasonTotals.totalCollected.toFixed(2)}</td><td>$${seasonTotals.owedToAlley.toFixed(2)}</td><td>$${seasonTotals.secretaryPay.toFixed(2)}</td><td>$${seasonTotals.prizePool.toFixed(2)}</td></tr>`;
-        h += '</table></body></html>';
-        const blob = new Blob([h], { type: 'application/vnd.ms-excel' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${league.name.replace(/[^a-z0-9]/gi,'_')}_${new Date().toISOString().split('T')[0]}.xls`;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-      };
-
-      const cwData = getWeekData(selectedWeek);
-      const cwPmts = league.weeklyPayments[`week_${selectedWeek}`] || {};
-
-      return (
-        <div className="min-h-screen bg-slate-900 p-4 md:p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <button onClick={goBack} className="text-slate-400 hover:text-white"><ChevL cls="w-6 h-6" /></button>
-                <h1 className="text-2xl md:text-3xl font-bold text-white truncate">{league.name}</h1>
-                {syncing && <span className="text-xs text-amber-500 animate-pulse">Saving...</span>}
-              </div>
-              <div className="flex gap-2">
-                {isOwner && <button onClick={() => setShowShare(true)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><Share cls="w-5 h-5" /> Share</button>}
-                <button onClick={exportToXLS} className="bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2"><Download cls="w-5 h-5" /> XLS</button>
-              </div>
+// ── Settings Tab ──────────────────────────────────────────────────────────────
+function SettingsTab({ league, updateLeague }) {
+  const s = league.settings;
+  const [localName, setLocalName] = useState(league.name);
+  const upd = (k, v) => updateLeague({ settings: { ...s, [k]: v } });
+  const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  return (
+    <div className="space-y-4">
+      <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+        <h3 className="text-xl font-bold text-white mb-4">League Info</h3>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-slate-300 text-sm font-semibold mb-1">League Name</label>
+            <div className="flex gap-2">
+              <input type="text" value={localName} onChange={e => setLocalName(titleCase(e.target.value))} className="flex-1 bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" />
+              <button onClick={() => updateLeague({ name: localName })} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center gap-1"><IconSave size="w-4 h-4" /> Save</button>
             </div>
-            {syncError && <div className="bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-3 mb-4 text-sm">{syncError}</div>}
-            <div className="flex gap-1 mb-6 border-b border-slate-700 overflow-x-auto">
-              {[['weeks','Weekly Tracking', <CalIcon cls="w-4 h-4 inline mr-1"/>],['roster','Team Roster',<Users cls="w-4 h-4 inline mr-1"/>],['settings','Settings',<GearIcon cls="w-4 h-4 inline mr-1"/>],['reports','Reports',<BarChart cls="w-4 h-4 inline mr-1"/>]].map(([id, label, icon]) => (
-                <button key={id} onClick={() => setTab(id)} className={`px-4 py-3 font-semibold whitespace-nowrap ${tab === id ? 'text-amber-500 border-b-2 border-amber-500' : 'text-slate-400 hover:text-white'}`}>{icon}{label}</button>
-              ))}
-            </div>
-            {tab === 'weeks' && <WeeksTab league={league} selectedWeek={selectedWeek} setSelectedWeek={setSelectedWeek} payingPlayers={payingPlayers} subPlayers={subPlayers} cwPmts={cwPmts} cwData={cwData} seasonTotals={seasonTotals} togglePayment={togglePayment} markAllPaid={markAllPaid} getWeekData={getWeekData} />}
-            {tab === 'roster' && <RosterTab league={league} updateLeague={updateLeague} />}
-            {tab === 'settings' && <SettingsTab league={league} updateLeague={updateLeague} />}
-            {tab === 'reports' && <ReportsTab league={league} payingPlayers={payingPlayers} subPlayers={subPlayers} seasonTotals={seasonTotals} getWeekData={getWeekData} />}
-            {showShare && <ShareModal league={league} onClose={() => setShowShare(false)} />}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className="block text-slate-300 text-sm font-semibold mb-1">Start Date</label><input type="date" value={s.startDate} onChange={e => upd('startDate', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
+            <div><label className="block text-slate-300 text-sm font-semibold mb-1">Day of Week</label><select value={s.dayOfWeek} onChange={e => upd('dayOfWeek', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none">{days.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
           </div>
         </div>
-      );
-    }
-
-    function ShareModal({ league, onClose }) {
-      const [email, setEmail] = useState('');
-      const [busy, setBusy] = useState(false);
-      const [err, setErr] = useState('');
-      const [ok, setOk] = useState('');
-      const [shared, setShared] = useState([]);
-      const load = useCallback(async () => {
-        const { data } = await db.from('league_access').select('id,user_id,role').eq('league_id', league.id);
-        setShared(data || []);
-      }, [league.id]);
-      useEffect(() => { load(); }, [load]);
-      const grant = async () => {
-        setErr(''); setOk(''); setBusy(true);
-        const e = email.trim().toLowerCase();
-        if (!e) { setErr('Enter an email'); setBusy(false); return; }
-        try {
-          const { data: uid, error: le } = await db.rpc('get_user_id_by_email', { lookup_email: e });
-          if (le || !uid) { setErr('User not found. They must sign up first.'); setBusy(false); return; }
-          const { error: ie } = await db.from('league_access').insert({ league_id: league.id, user_id: uid, role: 'editor' });
-          if (ie) { setErr(ie.code === '23505' ? 'Already has access.' : ie.message); }
-          else { setOk(`Access granted to ${e}`); setEmail(''); await load(); }
-        } catch(ex) { setErr('Error: ' + ex.message); }
-        setBusy(false);
-      };
-      const revoke = async (id) => { if (!window.confirm('Remove access?')) return; await db.from('league_access').delete().eq('id', id); await load(); };
-      return (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={onClose}>
-          <div className="bg-slate-800 rounded-2xl p-6 w-full max-w-md border border-slate-700" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-bold text-white">Share League</h3><button onClick={onClose} className="text-slate-400 hover:text-white"><X cls="w-5 h-5" /></button></div>
-            <p className="text-slate-400 text-sm mb-4">Enter the email of someone who has already signed up.</p>
-            <div className="space-y-3">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email address" className="w-full bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-amber-500 focus:outline-none" />
-              {err && <div className="text-red-400 text-sm">{err}</div>}
-              {ok && <div className="text-green-400 text-sm">{ok}</div>}
-              <button disabled={busy} onClick={grant} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-900 font-bold py-3 rounded-lg">{busy ? 'Granting...' : 'Grant Access'}</button>
-            </div>
-            {shared.length > 0 && <div className="mt-6 pt-4 border-t border-slate-700"><h4 className="text-white font-semibold mb-3">People with access</h4><div className="space-y-2">{shared.map(u => <div key={u.id} className="flex items-center justify-between bg-slate-700 rounded-lg p-3"><span className="text-slate-300 text-sm truncate">{u.user_id.substring(0,12)}...</span><button onClick={() => revoke(u.id)} className="text-red-400 hover:text-red-300 text-sm">Remove</button></div>)}</div></div>}
+      </div>
+      <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-sm text-slate-400">
+        <span className="text-amber-500 font-semibold">Teams and players</span> are managed on the <span className="text-white font-semibold">Team Roster</span> tab.
+      </div>
+      <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+        <h3 className="text-xl font-bold text-white mb-4">Season &amp; Money</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label className="block text-slate-300 text-sm font-semibold mb-1">Number of Weeks</label><NumberInput value={s.numWeeks} min={1} max={52} onChange={v => upd('numWeeks', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
+          <div><label className="block text-slate-300 text-sm font-semibold mb-1">Lines (Games) per Week</label><NumberInput value={s.linesPerWeek} min={1} max={10} onChange={v => upd('linesPerWeek', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
+          <div><label className="block text-slate-300 text-sm font-semibold mb-1">Weekly Fee per Player ($)</label><NumberInput value={s.weeklyFeePerPlayer} min={0} step={0.01} onChange={v => upd('weeklyFeePerPlayer', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /><p className="text-xs text-slate-500 mt-1">Total each player pays per week</p></div>
+          <div><label className="block text-slate-300 text-sm font-semibold mb-1">Alley Fee per Player ($)</label><NumberInput value={s.alleyFeePerPlayer} min={0} step={0.01} onChange={v => upd('alleyFeePerPlayer', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /><p className="text-xs text-slate-500 mt-1">Owed to the bowling alley per player per week</p></div>
+          <div><label className="block text-slate-300 text-sm font-semibold mb-1">Secretary Rate per Line ($)</label><NumberInput value={s.secretaryRatePerLine} min={0} step={0.01} onChange={v => upd('secretaryRatePerLine', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /><p className="text-xs text-slate-500 mt-1">Default: $0.60 per line per player per week</p></div>
+        </div>
+        <div className="mt-4 bg-slate-900 rounded-lg p-4 border border-slate-700">
+          <h4 className="text-amber-500 font-bold mb-2">Calculation Preview (per paid player per week)</h4>
+          <div className="space-y-1 text-sm">
+            <div className="flex justify-between text-slate-300"><span>Collected:</span><span>${s.weeklyFeePerPlayer.toFixed(2)}</span></div>
+            <div className="flex justify-between text-red-400"><span>To Alley:</span><span>${s.alleyFeePerPlayer.toFixed(2)}</span></div>
+            <div className="flex justify-between text-blue-400"><span>Secretary ({s.linesPerWeek} lines × ${s.secretaryRatePerLine.toFixed(2)}):</span><span>${(s.linesPerWeek * s.secretaryRatePerLine).toFixed(2)}</span></div>
+            <div className="flex justify-between text-green-400 font-bold pt-2 border-t border-slate-700"><span>To Prize Pool:</span><span>${(s.weeklyFeePerPlayer - s.alleyFeePerPlayer - (s.linesPerWeek * s.secretaryRatePerLine)).toFixed(2)}</span></div>
           </div>
         </div>
-      );
-    }
+      </div>
+    </div>
+  );
+}
 
-    function WeeksTab({ league, selectedWeek, setSelectedWeek, payingPlayers, subPlayers, cwPmts, cwData, seasonTotals, togglePayment, markAllPaid, getWeekData }) {
-      const s = league.settings;
-      if (payingPlayers.length === 0) return <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg mb-2">No paying players yet.</p><p className="text-slate-500 text-sm">Go to Team Roster and add players. Substitutes don't appear here.</p></div>;
-      const payByTeam = {};
-      const subByTeam = {};
-      league.teams.forEach((t, ti) => {
-        const lbl = teamLabel(t, ti);
-        const py = t.players.filter(p => p.name.trim() && !p.isSubstitute);
-        const sb = t.players.filter(p => p.name.trim() && p.isSubstitute);
-        if (py.length) payByTeam[lbl] = py;
-        if (sb.length) subByTeam[lbl] = sb;
-      });
-      return (
-        <div className="space-y-6">
-          <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-            <label className="block text-slate-300 text-sm font-semibold mb-2">Select Week</label>
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: s.numWeeks }, (_, i) => i + 1).map(w => {
-                const d = getWeekData(w);
-                return <button key={w} onClick={() => setSelectedWeek(w)} className={`px-4 py-2 rounded-lg font-semibold text-sm ${selectedWeek === w ? 'bg-amber-500 text-slate-900' : d.paidCount > 0 ? 'bg-slate-700 text-white border border-green-600' : 'bg-slate-700 text-slate-400 hover:bg-slate-600'}`}>{w}</button>;
-              })}
-            </div>
+// ── Reports Tab ───────────────────────────────────────────────────────────────
+function ReportsTab({ league, paying, subs, seasonTotals, getWeekData }) {
+  const s = league.settings;
+  const [sortBy, setSortBy] = useState('team');
+  const [sortDir, setSortDir] = useState('asc');
+  const [activeReport, setActiveReport] = useState('season');
+
+  const toggleSort = (field) => {
+    if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortBy(field); setSortDir('asc'); }
+  };
+
+  const SortArrow = ({ field }) => {
+    if (sortBy !== field) return <span className="text-slate-600 ml-1">↕</span>;
+    return <span className="text-amber-400 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
+  };
+
+  const playerStats = paying.map(p => {
+    let weeksPaid = 0;
+    for (let w = 1; w <= s.numWeeks; w++) {
+      if (league.weeklyPayments[`week_${w}`]?.[p.id]) weeksPaid++;
+    }
+    const weeksMissed = s.numWeeks - weeksPaid;
+    return { id: p.id, name: p.name, team: p.teamName, weeksPaid, weeksMissed, totalPaid: weeksPaid * s.weeklyFeePerPlayer, totalOwed: weeksMissed * s.weeklyFeePerPlayer, completionRate: s.numWeeks > 0 ? Math.round((weeksPaid / s.numWeeks) * 100) : 0 };
+  });
+
+  const sorted = [...playerStats].sort((a, b) => {
+    let c = 0;
+    if (sortBy === 'name') c = a.name.localeCompare(b.name);
+    else if (sortBy === 'team') c = a.team.localeCompare(b.team) || a.name.localeCompare(b.name);
+    else if (sortBy === 'paid') c = a.totalPaid - b.totalPaid;
+    else if (sortBy === 'owed') c = a.totalOwed - b.totalOwed;
+    else if (sortBy === 'rate') c = a.completionRate - b.completionRate;
+    return sortDir === 'asc' ? c : -c;
+  });
+
+  const teamStats = league.teams.map((team, ti) => {
+    const lbl = teamLabel(team, ti);
+    const tp = team.players.filter(p => p.name.trim() && !p.isSubstitute);
+    let collected = 0, expected = 0;
+    tp.forEach(p => { for (let w = 1; w <= s.numWeeks; w++) { expected += s.weeklyFeePerPlayer; if (league.weeklyPayments[`week_${w}`]?.[p.id]) collected += s.weeklyFeePerPlayer; } });
+    return { name: lbl, playerCount: tp.length, subCount: team.players.filter(p => p.name.trim() && p.isSubstitute).length, collected, expected, rate: expected > 0 ? Math.round((collected / expected) * 100) : 0 };
+  }).filter(t => t.playerCount > 0);
+
+  const latestWeek = (() => { for (let w = s.numWeeks; w >= 1; w--) { if (getWeekData(w).paidCount > 0) return w; } return 1; })();
+  const unpaid = paying.filter(p => !league.weeklyPayments[`week_${latestWeek}`]?.[p.id]);
+  const weeksWithData = Array.from({ length: s.numWeeks }, (_, i) => getWeekData(i + 1)).filter(d => d.paidCount > 0).length;
+  const totalExpected = paying.length * weeksWithData * s.weeklyFeePerPlayer;
+  const collectionRate = totalExpected > 0 ? Math.round((seasonTotals.totalCollected / totalExpected) * 100) : 0;
+
+  const reportBtns = ['season','players','teams','weekly','missing'];
+  const reportLabels = { season: 'Season Summary', players: 'Player Report', teams: 'Team Report', weekly: 'Weekly Breakdown', missing: 'Missing Payments' };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {reportBtns.map(r => (
+          <button key={r} onClick={() => setActiveReport(r)} className={`px-4 py-2 rounded-lg font-semibold text-sm ${activeReport === r ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{reportLabels[r]}</button>
+        ))}
+      </div>
+
+      {activeReport === 'season' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Total Collected</p><p className="text-2xl font-bold text-white">${seasonTotals.totalCollected.toFixed(2)}</p></div>
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">To Bowling Alley</p><p className="text-2xl font-bold text-red-400">${seasonTotals.owedToAlley.toFixed(2)}</p></div>
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Secretary Pay</p><p className="text-2xl font-bold text-blue-400">${seasonTotals.secretaryPay.toFixed(2)}</p></div>
+            <div className="bg-gradient-to-br from-green-900/50 to-slate-800 rounded-xl p-4 border border-green-700"><p className="text-slate-400 text-sm">Prize Pool</p><p className="text-2xl font-bold text-green-400">${seasonTotals.prizePool.toFixed(2)}</p></div>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Week {selectedWeek} Collected</div><div className="text-2xl font-bold text-white">${cwData.totalCollected.toFixed(2)}</div><div className="text-xs text-slate-500">{cwData.paidCount} of {payingPlayers.length} paid</div></div>
-            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Owed to Alley</div><div className="text-2xl font-bold text-red-400">${cwData.owedToAlley.toFixed(2)}</div></div>
-            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Secretary Pay</div><div className="text-2xl font-bold text-blue-400">${cwData.secretaryPay.toFixed(2)}</div></div>
-            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Prize Pool Added</div><div className="text-2xl font-bold text-green-400">${cwData.prizePool.toFixed(2)}</div></div>
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Teams</p><p className="text-2xl font-bold text-white">{league.teams.length}</p></div>
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Paying Players</p><p className="text-2xl font-bold text-white">{paying.length}</p></div>
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Weeks Tracked</p><p className="text-2xl font-bold text-white">{weeksWithData}<span className="text-slate-500 text-base font-normal"> / {s.numWeeks}</span></p></div>
+            <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><p className="text-slate-400 text-sm">Collection Rate</p><p className={`text-2xl font-bold ${collectionRate >= 90 ? 'text-green-400' : collectionRate >= 75 ? 'text-amber-400' : 'text-red-400'}`}>{collectionRate}%</p></div>
           </div>
-          <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <h3 className="text-xl font-bold text-white">Week {selectedWeek} Payments</h3>
-              <div className="flex gap-2">
-                <button onClick={() => markAllPaid(selectedWeek, true)} className="bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded-lg text-sm">Mark All Paid</button>
-                <button onClick={() => markAllPaid(selectedWeek, false)} className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-2 rounded-lg text-sm">Clear All</button>
-              </div>
-            </div>
-            <div className="space-y-4">
-              {Object.entries(payByTeam).map(([tn, players]) => (
-                <div key={tn}>
-                  <div className="flex items-baseline justify-between mb-2">
-                    <h4 className="text-amber-500 font-bold">{tn}</h4>
-                    {subByTeam[tn] && <span className="text-xs text-blue-300">Subs: {subByTeam[tn].map(sp => sp.name).join(', ')}</span>}
+          <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+            <h4 className="text-white font-bold mb-4">Money Flow (Season to Date)</h4>
+            <div className="space-y-3 text-sm">
+              {[
+                { label: 'Total In', val: seasonTotals.totalCollected, pct: 100, color: 'bg-amber-500', textColor: 'text-white' },
+                { label: 'To Alley', val: seasonTotals.owedToAlley, pct: seasonTotals.totalCollected > 0 ? (seasonTotals.owedToAlley / seasonTotals.totalCollected * 100) : 0, color: 'bg-red-500', textColor: 'text-red-400' },
+                { label: 'Secretary', val: seasonTotals.secretaryPay, pct: seasonTotals.totalCollected > 0 ? (seasonTotals.secretaryPay / seasonTotals.totalCollected * 100) : 0, color: 'bg-blue-500', textColor: 'text-blue-400' },
+                { label: 'Prize Pool', val: seasonTotals.prizePool, pct: seasonTotals.totalCollected > 0 ? (seasonTotals.prizePool / seasonTotals.totalCollected * 100) : 0, color: 'bg-green-500', textColor: 'text-green-400' },
+              ].map(row => (
+                <div key={row.label} className="flex items-center gap-3">
+                  <div className="w-24 text-slate-400 shrink-0">{row.label}</div>
+                  <div className="flex-1 bg-slate-700 rounded-full h-4 overflow-hidden">
+                    <div className={`h-4 rounded-full ${row.color}`} style={{ width: `${Math.max(0, Math.min(100, row.pct)).toFixed(1)}%` }}></div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {players.map(player => {
-                      const isPaid = cwPmts[player.id];
-                      return (
-                        <button key={player.id} onClick={() => togglePayment(selectedWeek, player.id)} className={`flex items-center justify-between p-3 rounded-lg border-2 transition-all ${isPaid ? 'bg-green-900/50 border-green-600 text-white' : 'bg-slate-700 border-slate-600 text-slate-300 hover:border-slate-500'}`}>
-                          <span className="font-medium text-left">{player.name}</span>
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isPaid ? 'bg-green-500' : 'bg-slate-600'}`}>{isPaid ? <Check cls="w-5 h-5 text-white" /> : <X cls="w-5 h-5 text-slate-400" />}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <div className={`w-24 text-right font-semibold shrink-0 ${row.textColor}`}>${row.val.toFixed(2)}</div>
                 </div>
               ))}
             </div>
-            {subPlayers.length > 0 && <p className="mt-4 pt-4 border-t border-slate-700 text-xs text-slate-500 italic">{subPlayers.length} sub{subPlayers.length !== 1 ? 's' : ''} on roster. Substitutes never pay and are not tracked here.</p>}
-          </div>
-          <div className="bg-gradient-to-br from-amber-900/30 to-slate-800 rounded-xl p-5 border border-amber-700">
-            <h3 className="text-xl font-bold text-white mb-4">Season Totals</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div><div className="text-slate-400 text-sm">Total Collected</div><div className="text-2xl font-bold text-white">${seasonTotals.totalCollected.toFixed(2)}</div></div>
-              <div><div className="text-slate-400 text-sm">To Alley</div><div className="text-2xl font-bold text-red-400">${seasonTotals.owedToAlley.toFixed(2)}</div></div>
-              <div><div className="text-slate-400 text-sm">Secretary Pay</div><div className="text-2xl font-bold text-blue-400">${seasonTotals.secretaryPay.toFixed(2)}</div></div>
-              <div><div className="text-slate-400 text-sm">Prize Pool</div><div className="text-2xl font-bold text-green-400">${seasonTotals.prizePool.toFixed(2)}</div></div>
-            </div>
           </div>
         </div>
-      );
-    }
+      )}
 
-    function RosterTab({ league, updateLeague }) {
-      const [localTeams, setLocalTeams] = useState(() => JSON.parse(JSON.stringify(league.teams)));
-      const [savedTeams, setSavedTeams] = useState(() => { const o = {}; league.teams.forEach(t => { o[t.id] = true; }); return o; });
-
-      useEffect(() => {
-        setLocalTeams(JSON.parse(JSON.stringify(league.teams)));
-        const o = {}; league.teams.forEach(t => { o[t.id] = true; }); setSavedTeams(o);
-      }, [league.teams]);
-
-      const dirty = (id) => setSavedTeams(p => ({ ...p, [id]: false }));
-      const anyUnsaved = Object.values(savedTeams).some(v => !v);
-
-      const updTeamName = (id, name) => { setLocalTeams(p => p.map(t => t.id === id ? { ...t, name: titleCase(name) } : t)); dirty(id); };
-      const updPlayerName = (tid, pid, name) => { setLocalTeams(p => p.map(t => t.id === tid ? { ...t, players: t.players.map(pl => pl.id === pid ? { ...pl, name: titleCase(name) } : pl) } : t)); dirty(tid); };
-      const toggleSub = (tid, pid) => {
-        const team = localTeams.find(t => t.id === tid);
-        const player = team?.players.find(p => p.id === pid);
-        if (!player) return;
-        const newSub = !player.isSubstitute;
-        setLocalTeams(p => p.map(t => t.id === tid ? { ...t, players: t.players.map(pl => pl.id === pid ? { ...pl, isSubstitute: newSub } : pl) } : t));
-        dirty(tid);
-        if (newSub && league.weeklyPayments) {
-          const cp = {};
-          let changed = false;
-          Object.entries(league.weeklyPayments).forEach(([wk, wd]) => {
-            const cw = {};
-            Object.entries(wd).forEach(([p2, v]) => { if (p2 !== pid) cw[p2] = v; else changed = true; });
-            cp[wk] = cw;
-          });
-          if (changed) updateLeague({ weeklyPayments: cp });
-        }
-      };
-
-      const saveTeam = async (id) => {
-        const teams = league.teams.map(t => { const loc = localTeams.find(lt => lt.id === id); return t.id === id && loc ? loc : t; });
-        await updateLeague({ teams });
-        setSavedTeams(p => ({ ...p, [id]: true }));
-      };
-
-      const saveAll = async () => { await updateLeague({ teams: localTeams }); const o = {}; localTeams.forEach(t => { o[t.id] = true; }); setSavedTeams(o); };
-
-      const addTeam = async () => {
-        const nt = { id: `team_${Date.now()}_${Math.random().toString(36).substr(2,5)}`, name: `Team ${league.teams.length + 1}`, players: [] };
-        await updateLeague({ teams: [...league.teams, nt] });
-      };
-
-      const removeTeam = async (id) => {
-        const t = league.teams.find(t => t.id === id);
-        if (!t || !window.confirm(`Remove "${t.name}" and all its players?`)) return;
-        const rmIds = t.players.map(p => p.id);
-        const cp = {};
-        Object.entries(league.weeklyPayments).forEach(([wk, wd]) => { const cw = {}; Object.entries(wd).forEach(([p, v]) => { if (!rmIds.includes(p)) cw[p] = v; }); cp[wk] = cw; });
-        await updateLeague({ teams: league.teams.filter(t => t.id !== id), weeklyPayments: cp });
-      };
-
-      const addPlayer = (tid) => {
-        const np = { id: `player_${Date.now()}_${Math.random().toString(36).substr(2,5)}`, name: '', isSubstitute: false };
-        setLocalTeams(p => p.map(t => t.id === tid ? { ...t, players: [...t.players, np] } : t));
-        dirty(tid);
-      };
-
-      const removePlayer = (tid, pid) => {
-        const t = localTeams.find(t => t.id === tid);
-        const p = t?.players.find(p => p.id === pid);
-        if (p?.name.trim() && !window.confirm(`Remove "${p.name}"?`)) return;
-        setLocalTeams(prev => prev.map(t => t.id === tid ? { ...t, players: t.players.filter(pl => pl.id !== pid) } : t));
-        dirty(tid);
-      };
-
-      const totReg = localTeams.reduce((s, t) => s + t.players.filter(p => p.name.trim() && !p.isSubstitute).length, 0);
-      const totSub = localTeams.reduce((s, t) => s + t.players.filter(p => p.name.trim() && p.isSubstitute).length, 0);
-
-      return (
-        <div className="space-y-4">
-          {/* Sticky save bar */}
-          <div className="bg-slate-800 rounded-xl p-4 border border-slate-700 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm text-slate-300">
-              <span className="text-white font-bold">{localTeams.length}</span> teams · <span className="text-white font-bold">{totReg}</span> regular · <span className="text-white font-bold">{totSub}</span> subs
-              {anyUnsaved && <span className="ml-3 text-amber-400 font-semibold">· Unsaved changes</span>}
-            </div>
-            <div className="flex gap-2">
-              {anyUnsaved && <button onClick={saveAll} className="bg-green-600 hover:bg-green-500 text-white font-bold px-5 py-2 rounded-lg flex items-center gap-2 text-base"><Save cls="w-5 h-5" /> Save All Changes</button>}
-              <button onClick={addTeam} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center gap-2"><Plus cls="w-5 h-5" /> Add Team</button>
-            </div>
-          </div>
-
-          <div className="bg-blue-900/30 rounded-xl p-3 border border-blue-800 text-sm text-blue-200">
-            <strong>Substitutes never pay.</strong> They fill in for a regular player who has already paid. Check "Sub" to exclude them from all payment tracking.
-          </div>
-
-          {localTeams.length === 0 && <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700"><p className="text-slate-400 text-lg mb-2">No teams yet.</p><p className="text-slate-500">Click "Add Team" above to get started.</p></div>}
-
-          {localTeams.map((team, idx) => {
-            const saved = savedTeams[team.id];
-            return (
-              <div key={team.id} className={`bg-slate-800 rounded-xl border ${saved === false ? 'border-amber-500' : 'border-slate-700'}`}>
-                {/* Team header */}
-                <div className="p-4 border-b border-slate-700">
-                  <div className="flex gap-2 items-center">
-                    <div className="flex-1">
-                      <label className="block text-amber-500 text-xs font-bold mb-1 uppercase tracking-wide">Team {idx + 1}</label>
-                      <input type="text" value={team.name} onChange={e => updTeamName(team.id, e.target.value)} className="w-full bg-slate-700 text-white text-lg font-bold rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" />
-                    </div>
-                    <div className="flex gap-2 items-end pb-0.5">
-                      <button
-                        onClick={() => saveTeam(team.id)}
-                        disabled={saved}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 font-bold text-sm whitespace-nowrap ${saved ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/50'}`}
-                      >
-                        <Save cls="w-4 h-4" />
-                        {saved ? '✓ Saved' : 'Save Team'}
-                      </button>
-                      <button onClick={() => removeTeam(team.id)} className="bg-red-900 hover:bg-red-800 text-white px-3 py-2 rounded-lg" title="Remove team"><Trash2 cls="w-4 h-4" /></button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Players */}
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-slate-400 text-sm font-semibold">Players ({team.players.length})</span>
-                    <button onClick={() => addPlayer(team.id)} className="bg-slate-700 hover:bg-slate-600 text-amber-400 border border-slate-600 px-3 py-1 rounded-lg text-sm flex items-center gap-1 font-semibold"><Plus cls="w-4 h-4" /> Add Player</button>
-                  </div>
-                  {team.players.length === 0
-                    ? <p className="text-slate-500 text-sm italic text-center py-4">No players yet. Click "Add Player" above.</p>
-                    : (
-                      <div className="space-y-2">
-                        {team.players.map((pl, pIdx) => (
-                          <div key={pl.id} className={`flex items-center gap-2 ${pl.isSubstitute ? 'opacity-70' : ''}`}>
-                            <span className="text-slate-500 text-sm w-6 text-right shrink-0">{pIdx + 1}.</span>
-                            <input type="text" value={pl.name} onChange={e => updPlayerName(team.id, pl.id, e.target.value)} placeholder="Player name" className="flex-1 bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none min-w-0" />
-                            <label className={`flex items-center gap-1 rounded-lg px-3 py-2 border cursor-pointer shrink-0 ${pl.isSubstitute ? 'bg-blue-900/60 border-blue-500' : 'bg-slate-700 border-slate-600 hover:bg-slate-600'}`}>
-                              <input type="checkbox" checked={pl.isSubstitute} onChange={() => toggleSub(team.id, pl.id)} className="w-4 h-4" />
-                              <span className={`text-sm font-semibold ${pl.isSubstitute ? 'text-blue-300' : 'text-slate-300'}`}>Sub</span>
-                            </label>
-                            <button onClick={() => removePlayer(team.id, pl.id)} className="bg-red-900 hover:bg-red-800 text-white px-2 py-2 rounded-lg shrink-0"><X cls="w-4 h-4" /></button>
-                          </div>
-                        ))}
-                      </div>
-                    )
-                  }
-                  {saved === false && (
-                    <div className="mt-4 pt-4 border-t border-slate-700 flex justify-end">
-                      <button onClick={() => saveTeam(team.id)} className="bg-green-600 hover:bg-green-500 text-white font-bold px-6 py-2 rounded-lg flex items-center gap-2 shadow-lg shadow-green-900/50">
-                        <Save cls="w-4 h-4" /> Save {team.name}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {localTeams.length > 0 && (
-            <button onClick={addTeam} className="w-full bg-slate-800 hover:bg-slate-700 border-2 border-dashed border-slate-600 hover:border-amber-500 text-slate-300 font-semibold py-4 rounded-xl flex items-center justify-center gap-2">
-              <Plus cls="w-5 h-5" /> Add Another Team
-            </button>
-          )}
-        </div>
-      );
-    }
-
-    function SettingsTab({ league, updateLeague }) {
-      const s = league.settings;
-      const [localName, setLocalName] = useState(league.name);
-      const upd = (k, v) => updateLeague({ settings: { ...s, [k]: v } });
-      const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-      return (
-        <div className="space-y-4">
-          <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-            <h3 className="text-xl font-bold text-white mb-4">League Info</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-slate-300 text-sm font-semibold mb-1">League Name</label>
-                <div className="flex gap-2">
-                  <input type="text" value={localName} onChange={e => setLocalName(titleCase(e.target.value))} className="flex-1 bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" />
-                  <button onClick={() => updateLeague({ name: localName })} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-4 py-2 rounded-lg flex items-center gap-1"><Save cls="w-4 h-4" /> Save</button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label className="block text-slate-300 text-sm font-semibold mb-1">Start Date</label><input type="date" value={s.startDate} onChange={e => upd('startDate', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
-                <div><label className="block text-slate-300 text-sm font-semibold mb-1">Day of Week</label><select value={s.dayOfWeek} onChange={e => upd('dayOfWeek', e.target.value)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none">{days.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
-              </div>
-            </div>
-          </div>
-          <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700 text-sm text-slate-400">
-            <span className="text-amber-500 font-semibold">Teams and players</span> are managed on the <span className="text-white font-semibold">Team Roster</span> tab.
-          </div>
-          <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-            <h3 className="text-xl font-bold text-white mb-4">Season &amp; Money</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className="block text-slate-300 text-sm font-semibold mb-1">Number of Weeks</label><NumberInput value={s.numWeeks} min={1} max={52} onChange={v => upd('numWeeks', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
-              <div><label className="block text-slate-300 text-sm font-semibold mb-1">Lines (Games) per Week</label><NumberInput value={s.linesPerWeek} min={1} max={10} onChange={v => upd('linesPerWeek', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /></div>
-              <div><label className="block text-slate-300 text-sm font-semibold mb-1">Weekly Fee per Player ($)</label><NumberInput value={s.weeklyFeePerPlayer} min={0} step={0.01} onChange={v => upd('weeklyFeePerPlayer', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /><p className="text-xs text-slate-500 mt-1">Total each player pays per week</p></div>
-              <div><label className="block text-slate-300 text-sm font-semibold mb-1">Alley Fee per Player ($)</label><NumberInput value={s.alleyFeePerPlayer} min={0} step={0.01} onChange={v => upd('alleyFeePerPlayer', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /><p className="text-xs text-slate-500 mt-1">Owed to the bowling alley per player per week</p></div>
-              <div><label className="block text-slate-300 text-sm font-semibold mb-1">Secretary Rate per Line ($)</label><NumberInput value={s.secretaryRatePerLine} min={0} step={0.01} onChange={v => upd('secretaryRatePerLine', v)} className="w-full bg-slate-700 text-white rounded-lg px-3 py-2 border border-slate-600 focus:border-amber-500 focus:outline-none" /><p className="text-xs text-slate-500 mt-1">Default: $0.60 per line per player per week</p></div>
-            </div>
-            <div className="mt-4 bg-slate-900 rounded-lg p-4 border border-slate-700">
-              <h4 className="text-amber-500 font-bold mb-2">Calculation Preview (per paid player per week)</h4>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between text-slate-300"><span>Collected:</span><span>${s.weeklyFeePerPlayer.toFixed(2)}</span></div>
-                <div className="flex justify-between text-red-400"><span>To Alley:</span><span>${s.alleyFeePerPlayer.toFixed(2)}</span></div>
-                <div className="flex justify-between text-blue-400"><span>Secretary ({s.linesPerWeek} lines × ${s.secretaryRatePerLine.toFixed(2)}):</span><span>${(s.linesPerWeek * s.secretaryRatePerLine).toFixed(2)}</span></div>
-                <div className="flex justify-between text-green-400 font-bold pt-2 border-t border-slate-700"><span>To Prize Pool:</span><span>${(s.weeklyFeePerPlayer - s.alleyFeePerPlayer - (s.linesPerWeek * s.secretaryRatePerLine)).toFixed(2)}</span></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // ============ REPORTS TAB ============
-    function ReportsTab({ league, payingPlayers, subPlayers, seasonTotals, getWeekData }) {
-      const s = league.settings;
-      const [sortBy, setSortBy] = useState('team');
-      const [sortDir, setSortDir] = useState('asc');
-      const [activeReport, setActiveReport] = useState('season');
-
-      const toggleSort = (field) => {
-        if (sortBy === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-        else { setSortBy(field); setSortDir('asc'); }
-      };
-
-      const SortArrow = ({ field }) => {
-        if (sortBy !== field) return <span className="text-slate-600 ml-1">↕</span>;
-        return <span className="text-amber-400 ml-1">{sortDir === 'asc' ? '↑' : '↓'}</span>;
-      };
-
-      // Per-player stats
-      const playerStats = payingPlayers.map(p => {
-        let weeksPaid = 0;
-        const missedWeeks = [];
-        for (let w = 1; w <= s.numWeeks; w++) {
-          if (league.weeklyPayments[`week_${w}`]?.[p.id]) weeksPaid++;
-          else missedWeeks.push(w);
-        }
-        const weeksMissed = s.numWeeks - weeksPaid;
-        return {
-          id: p.id, name: p.name, team: p.teamName,
-          weeksPaid, weeksMissed, missedWeeks,
-          totalPaid: weeksPaid * s.weeklyFeePerPlayer,
-          totalOwed: weeksMissed * s.weeklyFeePerPlayer,
-          completionRate: s.numWeeks > 0 ? Math.round((weeksPaid / s.numWeeks) * 100) : 0,
-        };
-      });
-
-      const sorted = [...playerStats].sort((a, b) => {
-        let c = 0;
-        if (sortBy === 'name') c = a.name.localeCompare(b.name);
-        else if (sortBy === 'team') c = a.team.localeCompare(b.team) || a.name.localeCompare(b.name);
-        else if (sortBy === 'paid') c = a.totalPaid - b.totalPaid;
-        else if (sortBy === 'owed') c = a.totalOwed - b.totalOwed;
-        else if (sortBy === 'rate') c = a.completionRate - b.completionRate;
-        return sortDir === 'asc' ? c : -c;
-      });
-
-      // Team stats
-      const teamStats = league.teams.map((team, ti) => {
-        const lbl = teamLabel(team, ti);
-        const paying = team.players.filter(p => p.name.trim() && !p.isSubstitute);
-        let collected = 0, expected = 0;
-        paying.forEach(p => {
-          for (let w = 1; w <= s.numWeeks; w++) {
-            expected += s.weeklyFeePerPlayer;
-            if (league.weeklyPayments[`week_${w}`]?.[p.id]) collected += s.weeklyFeePerPlayer;
-          }
-        });
-        return { name: lbl, playerCount: paying.length, subCount: team.players.filter(p => p.name.trim() && p.isSubstitute).length, collected, expected, rate: expected > 0 ? Math.round((collected / expected) * 100) : 0 };
-      }).filter(t => t.playerCount > 0);
-
-      // Missing payments: who hasn't paid this week (latest week with any data, or week 1)
-      const latestWeek = (() => {
-        for (let w = s.numWeeks; w >= 1; w--) {
-          const d = getWeekData(w);
-          if (d.paidCount > 0) return w;
-        }
-        return 1;
-      })();
-
-      const unpaidThisWeek = payingPlayers.filter(p => {
-        return !league.weeklyPayments[`week_${latestWeek}`]?.[p.id];
-      });
-
-      const weeksWithData = Array.from({ length: s.numWeeks }, (_, i) => getWeekData(i + 1)).filter(d => d.paidCount > 0).length;
-      const totalExpected = payingPlayers.length * weeksWithData * s.weeklyFeePerPlayer;
-      const collectionRate = totalExpected > 0 ? Math.round((seasonTotals.totalCollected / totalExpected) * 100) : 0;
-
-      const reports = [
-        { id: 'season', label: 'Season Summary' },
-        { id: 'players', label: 'Player Report' },
-        { id: 'teams', label: 'Team Report' },
-        { id: 'weekly', label: 'Weekly Breakdown' },
-        { id: 'missing', label: 'Missing Payments' },
-      ];
-
-      return (
-        <div className="space-y-4">
-          {/* Report selector */}
-          <div className="flex flex-wrap gap-2">
-            {reports.map(r => (
-              <button key={r.id} onClick={() => setActiveReport(r.id)} className={`px-4 py-2 rounded-lg font-semibold text-sm ${activeReport === r.id ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>{r.label}</button>
-            ))}
-          </div>
-
-          {/* ---- SEASON SUMMARY ---- */}
-          {activeReport === 'season' && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Total Collected</div><div className="text-2xl font-bold text-white">${seasonTotals.totalCollected.toFixed(2)}</div></div>
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">To Bowling Alley</div><div className="text-2xl font-bold text-red-400">${seasonTotals.owedToAlley.toFixed(2)}</div></div>
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Secretary Pay</div><div className="text-2xl font-bold text-blue-400">${seasonTotals.secretaryPay.toFixed(2)}</div></div>
-                <div className="bg-gradient-to-br from-green-900/50 to-slate-800 rounded-xl p-4 border border-green-700"><div className="text-slate-400 text-sm">Prize Pool</div><div className="text-2xl font-bold text-green-400">${seasonTotals.prizePool.toFixed(2)}</div></div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Teams</div><div className="text-2xl font-bold text-white">{league.teams.length}</div></div>
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Paying Players</div><div className="text-2xl font-bold text-white">{payingPlayers.length}</div></div>
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Weeks Tracked</div><div className="text-2xl font-bold text-white">{weeksWithData} <span className="text-slate-500 text-base font-normal">/ {s.numWeeks}</span></div></div>
-                <div className="bg-slate-800 rounded-xl p-4 border border-slate-700"><div className="text-slate-400 text-sm">Collection Rate</div><div className={`text-2xl font-bold ${collectionRate >= 90 ? 'text-green-400' : collectionRate >= 75 ? 'text-amber-400' : 'text-red-400'}`}>{collectionRate}%</div></div>
-              </div>
-              <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-                <h4 className="text-white font-bold mb-3">Money Flow (Season to Date)</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center gap-3"><div className="w-32 text-slate-400">Total In</div><div className="flex-1 bg-slate-700 rounded-full h-4 overflow-hidden"><div className="h-4 bg-amber-500 rounded-full" style={{ width: '100%' }}></div></div><div className="w-24 text-right text-white font-semibold">${seasonTotals.totalCollected.toFixed(2)}</div></div>
-                  <div className="flex items-center gap-3"><div className="w-32 text-slate-400">To Alley</div><div className="flex-1 bg-slate-700 rounded-full h-4 overflow-hidden"><div className="h-4 bg-red-500 rounded-full" style={{ width: seasonTotals.totalCollected > 0 ? `${(seasonTotals.owedToAlley / seasonTotals.totalCollected * 100).toFixed(1)}%` : '0%' }}></div></div><div className="w-24 text-right text-red-400 font-semibold">${seasonTotals.owedToAlley.toFixed(2)}</div></div>
-                  <div className="flex items-center gap-3"><div className="w-32 text-slate-400">Secretary</div><div className="flex-1 bg-slate-700 rounded-full h-4 overflow-hidden"><div className="h-4 bg-blue-500 rounded-full" style={{ width: seasonTotals.totalCollected > 0 ? `${(seasonTotals.secretaryPay / seasonTotals.totalCollected * 100).toFixed(1)}%` : '0%' }}></div></div><div className="w-24 text-right text-blue-400 font-semibold">${seasonTotals.secretaryPay.toFixed(2)}</div></div>
-                  <div className="flex items-center gap-3"><div className="w-32 text-slate-400">Prize Pool</div><div className="flex-1 bg-slate-700 rounded-full h-4 overflow-hidden"><div className="h-4 bg-green-500 rounded-full" style={{ width: seasonTotals.totalCollected > 0 ? `${(seasonTotals.prizePool / seasonTotals.totalCollected * 100).toFixed(1)}%` : '0%' }}></div></div><div className="w-24 text-right text-green-400 font-semibold">${seasonTotals.prizePool.toFixed(2)}</div></div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ---- PLAYER REPORT ---- */}
-          {activeReport === 'players' && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-              {payingPlayers.length === 0
-                ? <div className="p-12 text-center text-slate-400">No paying players yet.</div>
-                : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-slate-700 text-slate-300">
-                          <th className="text-left px-4 py-3 sort-btn" onClick={() => toggleSort('name')}>Player <SortArrow field="name" /></th>
-                          <th className="text-left px-4 py-3 sort-btn" onClick={() => toggleSort('team')}>Team <SortArrow field="team" /></th>
-                          <th className="text-center px-4 py-3 sort-btn" onClick={() => toggleSort('rate')}>Rate <SortArrow field="rate" /></th>
-                          <th className="text-right px-4 py-3 sort-btn" onClick={() => toggleSort('paid')}>Paid $ <SortArrow field="paid" /></th>
-                          <th className="text-right px-4 py-3 sort-btn" onClick={() => toggleSort('owed')}>Missed $ <SortArrow field="owed" /></th>
-                          <th className="text-center px-4 py-3">Wks Paid</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-700">
-                        {sorted.map(p => (
-                          <tr key={p.id} className="hover:bg-slate-700/50">
-                            <td className="px-4 py-3 text-white font-medium">{p.name}</td>
-                            <td className="px-4 py-3 text-slate-400">{p.team}</td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`px-2 py-1 rounded-full text-xs font-bold ${p.completionRate === 100 ? 'bg-green-900 text-green-300' : p.completionRate >= 75 ? 'bg-amber-900 text-amber-300' : 'bg-red-900 text-red-300'}`}>{p.completionRate}%</span>
-                            </td>
-                            <td className="px-4 py-3 text-right text-green-400 font-semibold">${p.totalPaid.toFixed(2)}</td>
-                            <td className="px-4 py-3 text-right">
-                              {p.totalOwed > 0
-                                ? <span className="text-red-400 font-semibold">${p.totalOwed.toFixed(2)}</span>
-                                : <span className="text-slate-500">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-center text-slate-300">{p.weeksPaid} / {s.numWeeks}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-slate-700 font-bold">
-                          <td className="px-4 py-3 text-white" colSpan="3">Totals</td>
-                          <td className="px-4 py-3 text-right text-green-400">${playerStats.reduce((s, p) => s + p.totalPaid, 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-red-400">${playerStats.reduce((s, p) => s + p.totalOwed, 0).toFixed(2)}</td>
-                          <td className="px-4 py-3 text-center text-slate-300">{playerStats.reduce((s, p) => s + p.weeksPaid, 0)} / {payingPlayers.length * s.numWeeks}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                )
-              }
-            </div>
-          )}
-
-          {/* ---- TEAM REPORT ---- */}
-          {activeReport === 'teams' && (
-            <div className="space-y-3">
-              {teamStats.length === 0
-                ? <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700 text-slate-400">No teams with players yet.</div>
-                : teamStats.map(t => (
-                  <div key={t.name} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h4 className="text-xl font-bold text-amber-500">{t.name}</h4>
-                        <p className="text-slate-400 text-sm">{t.playerCount} regular · {t.subCount} sub{t.subCount !== 1 ? 's' : ''}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-white">${t.collected.toFixed(2)}</div>
-                        <div className="text-slate-400 text-sm">of ${t.expected.toFixed(2)} expected</div>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      <div className="flex justify-between text-xs text-slate-400 mb-1"><span>Collection rate</span><span className={t.rate >= 90 ? 'text-green-400' : t.rate >= 75 ? 'text-amber-400' : 'text-red-400'}>{t.rate}%</span></div>
-                      <div className="w-full bg-slate-700 rounded-full h-3"><div className={`h-3 rounded-full ${t.rate >= 90 ? 'bg-green-500' : t.rate >= 75 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${t.rate}%` }}></div></div>
-                    </div>
-                  </div>
-                ))
-              }
-            </div>
-          )}
-
-          {/* ---- WEEKLY BREAKDOWN ---- */}
-          {activeReport === 'weekly' && (
-            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+      {activeReport === 'players' && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          {paying.length === 0
+            ? <div className="p-12 text-center text-slate-400">No paying players yet.</div>
+            : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-700 text-slate-300">
-                      <th className="text-left px-4 py-3">Week</th>
-                      <th className="text-center px-4 py-3">Paid</th>
-                      <th className="text-right px-4 py-3">Collected</th>
-                      <th className="text-right px-4 py-3">To Alley</th>
-                      <th className="text-right px-4 py-3">Sec Pay</th>
-                      <th className="text-right px-4 py-3">Prize Pool</th>
+                      <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('name')}>Player <SortArrow field="name" /></th>
+                      <th className="text-left px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('team')}>Team <SortArrow field="team" /></th>
+                      <th className="text-center px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('rate')}>Rate <SortArrow field="rate" /></th>
+                      <th className="text-right px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('paid')}>Paid $ <SortArrow field="paid" /></th>
+                      <th className="text-right px-4 py-3 cursor-pointer hover:text-white" onClick={() => toggleSort('owed')}>Missed $ <SortArrow field="owed" /></th>
+                      <th className="text-center px-4 py-3">Wks</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700">
-                    {Array.from({ length: s.numWeeks }, (_, i) => i + 1).map(w => {
-                      const d = getWeekData(w);
-                      const isEmpty = d.paidCount === 0;
-                      return (
-                        <tr key={w} className={isEmpty ? 'opacity-40' : 'hover:bg-slate-700/50'}>
-                          <td className="px-4 py-3 text-white font-medium">Week {w}</td>
-                          <td className="px-4 py-3 text-center text-slate-300">{d.paidCount} / {payingPlayers.length}</td>
-                          <td className="px-4 py-3 text-right text-white">${d.totalCollected.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-red-400">${d.owedToAlley.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-blue-400">${d.secretaryPay.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-green-400">${d.prizePool.toFixed(2)}</td>
-                        </tr>
-                      );
-                    })}
+                    {sorted.map(p => (
+                      <tr key={p.id} className="hover:bg-slate-700/50">
+                        <td className="px-4 py-3 text-white font-medium">{p.name}</td>
+                        <td className="px-4 py-3 text-slate-400 text-xs">{p.team}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${p.completionRate === 100 ? 'bg-green-900 text-green-300' : p.completionRate >= 75 ? 'bg-amber-900 text-amber-300' : 'bg-red-900 text-red-300'}`}>{p.completionRate}%</span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-green-400 font-semibold">${p.totalPaid.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right">{p.totalOwed > 0 ? <span className="text-red-400 font-semibold">${p.totalOwed.toFixed(2)}</span> : <span className="text-slate-500">—</span>}</td>
+                        <td className="px-4 py-3 text-center text-slate-300">{p.weeksPaid}/{s.numWeeks}</td>
+                      </tr>
+                    ))}
                   </tbody>
                   <tfoot>
                     <tr className="bg-slate-700 font-bold">
-                      <td className="px-4 py-3 text-white">Season Total</td>
-                      <td className="px-4 py-3"></td>
-                      <td className="px-4 py-3 text-right text-white">${seasonTotals.totalCollected.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right text-red-400">${seasonTotals.owedToAlley.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right text-blue-400">${seasonTotals.secretaryPay.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right text-green-400">${seasonTotals.prizePool.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-white" colSpan="3">Totals</td>
+                      <td className="px-4 py-3 text-right text-green-400">${playerStats.reduce((a, p) => a + p.totalPaid, 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-red-400">${playerStats.reduce((a, p) => a + p.totalOwed, 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-center text-slate-300">{playerStats.reduce((a, p) => a + p.weeksPaid, 0)}/{paying.length * s.numWeeks}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
-            </div>
-          )}
+            )
+          }
+        </div>
+      )}
 
-          {/* ---- MISSING PAYMENTS ---- */}
-          {activeReport === 'missing' && (
-            <div className="space-y-4">
-              <div className="bg-amber-900/30 border border-amber-700 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle cls="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-amber-200 font-semibold">Outstanding for Week {latestWeek}</p>
-                  <p className="text-amber-300/70 text-sm mt-1">{unpaidThisWeek.length === 0 ? 'Everyone has paid this week!' : `${unpaidThisWeek.length} player${unpaidThisWeek.length !== 1 ? 's' : ''} have not yet paid for week ${latestWeek}.`}</p>
+      {activeReport === 'teams' && (
+        <div className="space-y-3">
+          {teamStats.length === 0
+            ? <div className="bg-slate-800 rounded-xl p-12 text-center border border-slate-700 text-slate-400">No teams with players yet.</div>
+            : teamStats.map(t => (
+              <div key={t.name} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div><h4 className="text-xl font-bold text-amber-500">{t.name}</h4><p className="text-slate-400 text-sm">{t.playerCount} regular · {t.subCount} sub{t.subCount !== 1 ? 's' : ''}</p></div>
+                  <div className="text-right"><p className="text-2xl font-bold text-white">${t.collected.toFixed(2)}</p><p className="text-slate-400 text-sm">of ${t.expected.toFixed(2)} expected</p></div>
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs text-slate-400 mb-1"><span>Collection rate</span><span className={t.rate >= 90 ? 'text-green-400' : t.rate >= 75 ? 'text-amber-400' : 'text-red-400'}>{t.rate}%</span></div>
+                  <div className="w-full bg-slate-700 rounded-full h-3"><div className={`h-3 rounded-full ${t.rate >= 90 ? 'bg-green-500' : t.rate >= 75 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${t.rate}%` }}></div></div>
                 </div>
               </div>
-              {unpaidThisWeek.length > 0 && (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-700"><h4 className="text-white font-semibold">Not paid — Week {latestWeek}</h4></div>
-                  <div className="divide-y divide-slate-700">
-                    {unpaidThisWeek.map(p => (
-                      <div key={p.id} className="flex items-center justify-between px-4 py-3">
-                        <div><p className="text-white font-medium">{p.name}</p><p className="text-slate-400 text-sm">{p.teamName}</p></div>
-                        <span className="text-red-400 font-semibold">${s.weeklyFeePerPlayer.toFixed(2)} owed</span>
-                      </div>
-                    ))}
+            ))
+          }
+        </div>
+      )}
+
+      {activeReport === 'weekly' && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-slate-700 text-slate-300">
+                  <th className="text-left px-4 py-3">Week</th>
+                  <th className="text-center px-4 py-3">Paid</th>
+                  <th className="text-right px-4 py-3">Collected</th>
+                  <th className="text-right px-4 py-3">To Alley</th>
+                  <th className="text-right px-4 py-3">Sec Pay</th>
+                  <th className="text-right px-4 py-3">Prize Pool</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-700">
+                {Array.from({ length: s.numWeeks }, (_, i) => i + 1).map(w => {
+                  const d = getWeekData(w);
+                  return (
+                    <tr key={w} className={d.paidCount === 0 ? 'opacity-40' : 'hover:bg-slate-700/50'}>
+                      <td className="px-4 py-3 text-white font-medium">Week {w}</td>
+                      <td className="px-4 py-3 text-center text-slate-300">{d.paidCount}/{paying.length}</td>
+                      <td className="px-4 py-3 text-right text-white">${d.totalCollected.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-red-400">${d.owedToAlley.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-blue-400">${d.secretaryPay.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right text-green-400">${d.prizePool.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-slate-700 font-bold">
+                  <td className="px-4 py-3 text-white">Season Total</td>
+                  <td></td>
+                  <td className="px-4 py-3 text-right text-white">${seasonTotals.totalCollected.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-red-400">${seasonTotals.owedToAlley.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-blue-400">${seasonTotals.secretaryPay.toFixed(2)}</td>
+                  <td className="px-4 py-3 text-right text-green-400">${seasonTotals.prizePool.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {activeReport === 'missing' && (
+        <div className="space-y-4">
+          <div className="bg-amber-900/30 border border-amber-700 rounded-xl p-4 flex items-start gap-3">
+            <IconAlert size="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-amber-200 font-semibold">Outstanding for Week {latestWeek}</p>
+              <p className="text-amber-300/70 text-sm mt-1">{unpaid.length === 0 ? 'Everyone has paid this week!' : `${unpaid.length} player${unpaid.length !== 1 ? 's' : ''} have not paid for week ${latestWeek}.`}</p>
+            </div>
+          </div>
+          {unpaid.length > 0 && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="px-4 py-3 bg-slate-700"><h4 className="text-white font-semibold">Not paid — Week {latestWeek}</h4></div>
+              <div className="divide-y divide-slate-700">
+                {unpaid.map(p => (
+                  <div key={p.id} className="flex items-center justify-between px-4 py-3">
+                    <div><p className="text-white font-medium">{p.name}</p><p className="text-slate-400 text-sm">{p.teamName}</p></div>
+                    <span className="text-red-400 font-semibold">${s.weeklyFeePerPlayer.toFixed(2)} owed</span>
                   </div>
-                </div>
-              )}
-              {/* Players with most missed weeks overall */}
-              {playerStats.filter(p => p.weeksMissed > 0).length > 0 && (
-                <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-                  <div className="px-4 py-3 bg-slate-700"><h4 className="text-white font-semibold">Most Missed Payments (Season)</h4></div>
-                  <div className="divide-y divide-slate-700">
-                    {[...playerStats].filter(p => p.weeksMissed > 0).sort((a, b) => b.weeksMissed - a.weeksMissed).map(p => (
-                      <div key={p.id} className="flex items-center justify-between px-4 py-3">
-                        <div><p className="text-white font-medium">{p.name}</p><p className="text-slate-400 text-sm">{p.team}</p></div>
-                        <div className="text-right">
-                          <p className="text-red-400 font-semibold">${p.totalOwed.toFixed(2)} total missed</p>
-                          <p className="text-slate-400 text-xs">{p.weeksMissed} week{p.weeksMissed !== 1 ? 's' : ''} missed</p>
-                        </div>
-                      </div>
-                    ))}
+                ))}
+              </div>
+            </div>
+          )}
+          {playerStats.filter(p => p.weeksMissed > 0).length > 0 && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+              <div className="px-4 py-3 bg-slate-700"><h4 className="text-white font-semibold">Most Missed Payments (Season)</h4></div>
+              <div className="divide-y divide-slate-700">
+                {[...playerStats].filter(p => p.weeksMissed > 0).sort((a, b) => b.weeksMissed - a.weeksMissed).map(p => (
+                  <div key={p.id} className="flex items-center justify-between px-4 py-3">
+                    <div><p className="text-white font-medium">{p.name}</p><p className="text-slate-400 text-sm">{p.team}</p></div>
+                    <div className="text-right"><p className="text-red-400 font-semibold">${p.totalOwed.toFixed(2)} total missed</p><p className="text-slate-400 text-xs">{p.weeksMissed} week{p.weeksMissed !== 1 ? 's' : ''} missed</p></div>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
             </div>
           )}
         </div>
-      );
-    }
+      )}
+    </div>
+  );
+}
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>
